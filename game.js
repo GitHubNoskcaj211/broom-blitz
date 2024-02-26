@@ -26,7 +26,7 @@ const GAME_TIME_SECONDS = 200;
 
 const PLAYER_RADIUS = 1;
 const MAX_FORWARD_PLAYER_SPEED = 20; // meters per second
-const MAX_FORWARD_PLAYER_SPEED_WHEN_GRABBING_BALL = 15;
+const MAX_FORWARD_PLAYER_SPEED_WHEN_GRABBING_BALL = 16;
 const MAX_BACKWARD_PLAYER_SPEED = 5; // meters per second
 const PLAYER_FORWARD_LINEAR_FORCE = 30; // netwons
 const PLAYER_BACKWARD_LINEAR_FORCE = 35; // netwons
@@ -36,7 +36,9 @@ const PLAYER_RESTITUTION = 0.5;
 const PLAYER_TURNING_SPEED = Math.PI; // rads per second
 const PLAYER_MASS = 1;
 const PLAYER_INERTIA = 1;
-const PLAYER_GRAB_THROW_DELAY_SECONDS = 0.25;
+const PLAYER_GRAB_DELAY_SECONDS = 0.25;
+const PLAYER_THROW_DELAY_SECONDS = 0.75;
+const PLAYER_DROPPED_BALL_GRAB_DELAY_SECONDS = 0.75;
 const PLAYER_STUN_DURATION = 1;
 const PLAYER_STUN_NUMBER_OF_ROTATIONS = 6;
 const PLAYER_LINEAR_DAMPING = 0.5;
@@ -54,29 +56,34 @@ const SCORING_BALL_THROW_SPEED = 40;
 const SCORING_BALL_MASS = 0.1;
 const SCORING_BALL_INERTIA = 1;
 const SCORING_BALL_GRAB_DISTANCE = 2.0;
-const SCORING_BALL_LINEAR_DAMPING = 1.0;
+const SCORING_BALL_LINEAR_DAMPING = 2.0;
+const SCORING_BALL_SCORE = 10;
 
 const BALL_DROP_VELOCITY_PERCENT = 0.25;
 
 const HITTING_BALL_FRICTION = 0.0;
 const HITTING_BALL_RESTITUTION = 0.1;
 const HITTING_BALL_RADIUS = 1.25;
-const MAX_HITTING_BALL_SPEED = 35;
+const MAX_HITTING_BALL_SPEED = 40;
 const HITTING_BALL_MASS = 2.0;
 const HITTING_BALL_INERTIA = 1;
 const HITTING_BALL_GRAB_DISTANCE = 2.0;
 const HITTING_BALL_LINEAR_DAMPING = 0.5;
 const HITTING_BALL_MIN_COLLISION_SPEED = 1;
 const HITTING_BALL_SEEKING_LINEAR_FORCE = 60;
-const AIM_ASSIST_SEEK_MODE_TIME = 2.0;
-const HITTING_BALL_MAX_TIME_BETWEEN_SEEKING_MODES = 5;
+const HITTING_BALL_MAX_TIME_BETWEEN_SEEKING_MODES = 3;
 const HITTING_BALL_MIN_TIME_BETWEEN_SEEKING_MODES = 1;
 const RECENT_PLAYER_THROW_MIN_SPEED = 20;
 const HITTING_BALL_STOP_SEEKING_SCORING_BALL_DISTANCE = 0.1;
 const HITTING_BALL_TURN_SPEED = Math.PI;
+const HITTING_BALL_VERTICAL_RANDOM_DISTANCE = FIELD_HEIGHT_METERS * 4 / 10;
+const HITTING_BALL_HORIZONTAL_RANDOM_DISTANCE = FIELD_HEIGHT_METERS * 4 / 10;
 const THROW_DISTANCE_FROM_PLAYER = 0.1;
 
-const PLAYER_1_COLOR = "rgb(0 83 99 / 100%)";
+const AIM_ASSIST_SEEK_MODE_TIME = 1.5;
+const AIM_ASSIST_MAX_THROW_ANGLE_DIFFERENCE = 45 * Math.PI / 180;
+
+const PLAYER_1_COLOR = "rgb(0 83 150 / 100%)";
 const PLAYER_2_COLOR = "rgb(162 0 26 / 100%)";
 const BOTH_PLAYERS_COLOR = "rgb(81 71 92 / 100%)";
 
@@ -327,7 +334,7 @@ class CustomContactListener {
                         if (scoring_ball.grabbing_player !== null) {
                             break;
                         }
-                        goal.player_to_add_score.score += 1;
+                        goal.player_to_add_score.score += SCORING_BALL_SCORE;
                         scoring_ball.collision_hit_score_sensor = true;
                         break;
                     case BodyType.PLAYER + '_' + BodyType.HITTING_BALL:
@@ -344,8 +351,8 @@ class CustomContactListener {
                     case BodyType.PLAYER + '_' + BodyType.PLAYER:
                         const player_1 = body_a.GetUserData()['object'];
                         const player_2 = body_b.GetUserData()['object'];
-                        player_1.collision_with_player = true;
-                        player_2.collision_with_player = true;
+                        // player_1.collision_with_player = true;
+                        // player_2.collision_with_player = true;
                         break;
                     default:
                         break;
@@ -424,7 +431,7 @@ class Player {
         this.player_body.SetMassData(mass_data);
 
         this.grabbed_ball = null;
-        this.last_grab_throw_time = game.remaining_match_time + PLAYER_GRAB_THROW_DELAY_SECONDS;
+        this.next_grab_throw_time = game.remaining_match_time;
 
         this.player_color = (this.player_number === 1) ? PLAYER_1_COLOR : PLAYER_2_COLOR;
         
@@ -476,8 +483,16 @@ class Player {
         this.grab_throw = false;
     }
 
+    is_stunned() {
+        return this.game.remaining_match_time > this.time_stopped_stunned;
+    }
+
+    can_grab() {
+        return this.next_grab_throw_time > this.game.remaining_match_time && !this.is_stunned();
+    }
+
     apply_movement() {
-        if (this.game.remaining_match_time <= this.time_stopped_stunned) {
+        if (!this.is_stunned()) {
             if (this.moving_forward) {
                 this.player_body.ApplyForce(new b2Vec2(PLAYER_FORWARD_LINEAR_FORCE * Math.cos(this.player_body.GetAngle()), PLAYER_FORWARD_LINEAR_FORCE * Math.sin(this.player_body.GetAngle())), this.player_body.GetWorldCenter(), true);
             }
@@ -500,14 +515,15 @@ class Player {
             this.collision_new_angle = null
         }
         
-        if (this.game.remaining_match_time <= this.time_stopped_stunned) {
+        const max_forward_speed = (this.grabbed_ball === null) ? MAX_FORWARD_PLAYER_SPEED : MAX_FORWARD_PLAYER_SPEED_WHEN_GRABBING_BALL;
+        if (!this.is_stunned()) {
             const player_linear_velocity = this.player_body.GetLinearVelocity();
-            const player_speed = clamp(player_linear_velocity.x * Math.cos(this.player_body.GetAngle()) + player_linear_velocity.y * Math.sin(this.player_body.GetAngle()), -MAX_BACKWARD_PLAYER_SPEED, MAX_FORWARD_PLAYER_SPEED);
+            const player_speed = clamp(player_linear_velocity.x * Math.cos(this.player_body.GetAngle()) + player_linear_velocity.y * Math.sin(this.player_body.GetAngle()), -MAX_BACKWARD_PLAYER_SPEED, max_forward_speed);
             this.player_body.SetLinearVelocity(new b2Vec2(player_speed * Math.cos(this.player_body.GetAngle()), player_speed * Math.sin(this.player_body.GetAngle())))
         } else {
             const linear_velocity = this.player_body.GetLinearVelocity();
             const current_speed = vector_magnitude(linear_velocity);
-            const new_speed = Math.min(current_speed, MAX_FORWARD_PLAYER_SPEED);
+            const new_speed = Math.min(current_speed, max_forward_speed);
             if (current_speed > 0) {
                 this.player_body.SetLinearVelocity(new b2Vec2(linear_velocity.x / current_speed * new_speed, linear_velocity.y / current_speed * new_speed));
             }
@@ -520,24 +536,26 @@ class Player {
             if (distance_between_player_and_ball(this, ball) > ball.grab_distance) {
                 continue;
             }
-            ball.grabbed_by_player(this);
-            this.grabbed_ball = ball;
-            this.last_grab_throw_time = this.game.remaining_match_time;
-            return; // Can only grab one thing.
+            const success = ball.grabbed_by_player(this);
+            if (success) {
+                this.grabbed_ball = ball;
+                this.next_grab_throw_time = this.game.remaining_match_time - PLAYER_GRAB_DELAY_SECONDS;
+                return; // Can only grab one thing.
+            }
         }
     }
 
     handle_throwing() {
         this.grabbed_ball.throw();
-        this.last_grab_throw_time = this.game.remaining_match_time;
+        this.next_grab_throw_time = this.game.remaining_match_time - PLAYER_THROW_DELAY_SECONDS;
     }
 
     handle_grab_throw() {
-        if (this.last_grab_throw_time - PLAYER_GRAB_THROW_DELAY_SECONDS < this.game.remaining_match_time) {
+        if (!this.can_grab()) {
             return;
         }
         if (this.grabbed_ball === null) {
-            this.handle_grabbing([this.game.scoring_ball, this.game.hitting_ball_1, this.game.hitting_ball_2]) // Order is the precendence of grabbing
+            this.handle_grabbing(this.game.grabbing_objects)
         } else {
             this.handle_throwing();
         }
@@ -547,7 +565,8 @@ class Player {
         let target_position = null;
         const grabbing_hitting_ball = this.grabbed_ball !== null && this.grabbed_ball.ball_body.GetUserData()['type'] === BodyType.HITTING_BALL;
         const grabbing_scoring_ball = this.grabbed_ball !== null && this.grabbed_ball.ball_body.GetUserData()['type'] === BodyType.SCORING_BALL;
-        const opposing_player_position = this.game.player1 === this ? this.game.player2.player_body.GetPosition() : this.game.player1.player_body.GetPosition();
+        const opposing_player = this.game.player1 === this ? this.game.player2 : this.game.player1;
+        const opposing_player_position = opposing_player.player_body.GetPosition();
         const target_goals = this.game.player1 === this ? this.game.player_1_target_goals : this.game.player_2_target_goals;
         
         if (grabbing_hitting_ball) {
@@ -558,10 +577,15 @@ class Player {
         
         if (target_position === null) {
             // Seeking
-            if (distance_between_positions(opposing_player_position, this.game.scoring_ball.ball_body.GetPosition()) > distance_between_positions(this.player_body.GetPosition(), this.game.scoring_ball.ball_body.GetPosition())) {
-                target_position = this.game.scoring_ball.ball_body.GetPosition();
+            const closest_hitting_ball_position = this.game.hitting_balls.reduce((closest_ball, ball) => distance_between_positions(ball.ball_body.GetPosition(), this.player_body.GetPosition()) < distance_between_positions(closest_ball.ball_body.GetPosition(), this.player_body.GetPosition()) ? ball : closest_ball, this.game.hitting_balls[0]).ball_body.GetPosition()
+            const scoring_ball_position = this.game.scoring_ball.ball_body.GetPosition();
+            const this_player_position = this.player_body.GetPosition();
+            if (distance_between_positions(opposing_player_position, scoring_ball_position) > distance_between_positions(this_player_position, scoring_ball_position) || opposing_player.is_stunned()) {
+                target_position = scoring_ball_position;
+            } else if (distance_between_positions(this_player_position, opposing_player_position) < distance_between_positions(this_player_position, closest_hitting_ball_position)) {
+                target_position = scoring_ball_position;
             } else {
-                target_position = this.game.hitting_balls.reduce((closest_ball, ball) => distance_between_positions(ball.ball_body.GetPosition(), this.player_body.GetPosition()) < distance_between_positions(closest_ball.ball_body.GetPosition(), this.player_body.GetPosition()) ? ball : closest_ball, this.game.hitting_balls[0]).ball_body.GetPosition();
+                target_position = closest_hitting_ball_position;
             }
             this.grab_throw = true;
         } else {
@@ -572,7 +596,7 @@ class Player {
         const angle_difference_to_target = angle_difference(angle_to_target, this.player_body.GetAngle());
         if (grabbing_hitting_ball && Math.abs(angle_difference_to_target) < 45 * Math.PI / 180 && distance_between_positions(target_position, this.player_body.GetPosition()) < 50) {
             this.grab_throw = true;
-        } else if (grabbing_scoring_ball && Math.abs(angle_difference_to_target) < 5 * Math.PI / 180 && distance_between_positions(target_position, this.player_body.GetPosition()) < 30) {
+        } else if (grabbing_scoring_ball && Math.abs(angle_difference_to_target) < 5 * Math.PI / 180 && distance_between_positions(target_position, this.player_body.GetPosition()) < 15) {
             this.grab_throw = true;
         }
         
@@ -586,10 +610,10 @@ class Player {
             this.turning_left = false;
             this.turning_right = false;
         }
-        if (Math.abs(angle_difference_to_target) < 75 * Math.PI / 180 && distance_between_positions(target_position, this.player_body.GetPosition()) > 5) {
+        if (Math.abs(angle_difference_to_target) < 75 * Math.PI / 180 && (distance_between_positions(target_position, this.player_body.GetPosition()) > 5 || this.grabbed_ball === null)) {
             this.moving_forward = true;
             this.moving_backward = false;
-        } else if (Math.abs(angle_difference_to_target) > 145 * Math.PI / 180 && distance_between_positions(target_position, this.player_body.GetPosition()) > 5) {
+        } else if (Math.abs(angle_difference_to_target) > 145 * Math.PI / 180 && (distance_between_positions(target_position, this.player_body.GetPosition()) > 5 || this.grabbed_ball === null)) {
             this.moving_forward = false;
             this.moving_backward = true;
         } else {
@@ -612,7 +636,7 @@ class Player {
             this.drop_ball();
             this.collision_with_player = false;
         }
-        if (this.game.remaining_match_time <= this.time_stopped_stunned && this.grab_throw) {
+        if (this.grab_throw) {
             this.handle_grab_throw()
         }
     }
@@ -709,7 +733,7 @@ class GrabbableBall {
     }
 
     get_grabbable_players() {
-        return this.game.players.filter((player) => distance_between_player_and_ball(player, this) <= this.grab_distance);
+        return this.game.players.filter((player) => distance_between_player_and_ball(player, this) <= this.grab_distance && (player.can_grab() || player === this.grabbing_player));
     }
 
     remove_grab() {
@@ -721,10 +745,14 @@ class GrabbableBall {
     }
 
     grabbed_by_player(player) {
+        if (this.grabbing_player !== null) {
+            this.grabbing_player.next_grab_throw_time = this.game.remaining_match_time - PLAYER_DROPPED_BALL_GRAB_DELAY_SECONDS;
+        }
         this.remove_grab();
         this.grabbing_player = player;
         this.ball_body.SetLinearVelocity(new b2Vec2(0, 0));
         this.ball_body.GetFixtureList().SetSensor(true);
+        return true;
     }
 
     throw() {
@@ -736,6 +764,9 @@ class GrabbableBall {
     }
 
     drop() {
+        if (this.grabbing_player !== null) {
+            this.grabbing_player.next_grab_throw_time = this.game.remaining_match_time - PLAYER_DROPPED_BALL_GRAB_DELAY_SECONDS;
+        }
         this.ball_body.SetLinearVelocity(new b2Vec2(BALL_DROP_VELOCITY_PERCENT * this.grabbing_player.player_body.GetLinearVelocity().x, BALL_DROP_VELOCITY_PERCENT * this.grabbing_player.player_body.GetLinearVelocity().y));
         this.remove_grab();
     }
@@ -779,6 +810,7 @@ const HittingBallSeekingModes = Object.freeze({
     CLOSEST_SCORING_PLAYER: 1,
     PLAYER: 2,
     SCORING_BALL: 3,
+    NONE: 4,
 })
 
 class HittingBall extends GrabbableBall {
@@ -789,18 +821,45 @@ class HittingBall extends GrabbableBall {
         this.reset_ball();
     }
 
+    get_grabbable_players() {
+        if (this.seeking_mode === HittingBallSeekingModes.PLAYER) {
+            return this.game.players.filter((player) => player !== this.seeking_player);
+        }
+        return super.get_grabbable_players();
+    }
+
     roll_random_mode(mode_options) {
         this.seeking_mode = mode_options[random_int(mode_options.length - 1)];
         this.time_to_change_seeking_mode = this.game.remaining_match_time - random(HITTING_BALL_MIN_TIME_BETWEEN_SEEKING_MODES, HITTING_BALL_MAX_TIME_BETWEEN_SEEKING_MODES);
         this.seeking_player = this.game.players[random_int(this.game.players.length - 1)];
+
+        // Random seek around the scoring ball
+        // const scoring_ball_position = this.game.scoring_ball.ball_body.GetPosition();
+        // this.seeking_position = new b2Vec2(random(Math.max(FIELD_WIDTH_METERS / 10, scoring_ball_position.x - HITTING_BALL_HORIZONTAL_RANDOM_DISTANCE), Math.min(FIELD_WIDTH_METERS * 9 / 10, scoring_ball_position.x + HITTING_BALL_HORIZONTAL_RANDOM_DISTANCE)), random(Math.max(FIELD_LINE_WIDTH_METERS, scoring_ball_position.y - HITTING_BALL_VERTICAL_RANDOM_DISTANCE), Math.min(FIELD_HEIGHT_METERS - FIELD_LINE_WIDTH_METERS, scoring_ball_position.y + HITTING_BALL_VERTICAL_RANDOM_DISTANCE)));
         this.seeking_position = new b2Vec2(random(FIELD_WIDTH_METERS / 10, FIELD_WIDTH_METERS * 9 / 10), random(FIELD_LINE_WIDTH_METERS, FIELD_HEIGHT_METERS - FIELD_LINE_WIDTH_METERS));
+    }
+
+    grabbed_by_player(player) {
+        if (this.seeking_mode === HittingBallSeekingModes.PLAYER) {
+            return false;
+        }
+        return super.grabbed_by_player(player);
     }
 
     throw() {
         this.recent_player_throw = true;
-        this.seeking_mode = HittingBallSeekingModes.PLAYER;
-        this.time_to_change_seeking_mode = this.game.remaining_match_time - AIM_ASSIST_SEEK_MODE_TIME;
-        this.seeking_player = (this.game.players[0] === this.grabbing_player) ? this.game.players[1] : this.game.players[0];
+        const other_player = (this.game.players[0] === this.grabbing_player) ? this.game.players[1] : this.game.players[0];
+        const difference_vector = new b2Vec2(other_player.player_body.GetPosition().x - this.grabbing_player.player_body.GetPosition().x, other_player.player_body.GetPosition().y - this.grabbing_player.player_body.GetPosition().y)
+        const throw_angle_difference = angle_difference(this.grabbing_player.player_body.GetAngle(), Math.atan2(difference_vector.y, difference_vector.x));
+        if (Math.abs(throw_angle_difference) < AIM_ASSIST_MAX_THROW_ANGLE_DIFFERENCE) {
+            this.seeking_mode = HittingBallSeekingModes.PLAYER;
+            this.seeking_player = other_player;
+            this.time_to_change_seeking_mode = this.game.remaining_match_time - AIM_ASSIST_SEEK_MODE_TIME;
+        } else {
+            this.seeking_mode = HittingBallSeekingModes.NONE;
+            this.time_to_change_seeking_mode = this.game.remaining_match_time - AIM_ASSIST_SEEK_MODE_TIME;
+        }
+
         super.throw();
     }
     
@@ -819,64 +878,49 @@ class HittingBall extends GrabbableBall {
         }
 
         // Seeking
-        // if (!this.recent_player_throw) {
-            let difference_vector = null;
-            switch(this.seeking_mode) {
-                case HittingBallSeekingModes.RANDOM:
-                    difference_vector = new b2Vec2(this.seeking_position.x - this.ball_body.GetPosition().x, this.seeking_position.y - this.ball_body.GetPosition().y);
-                    if (vector_magnitude(difference_vector) <= this.ball_body.GetFixtureList().GetShape().GetRadius()) {
-                        this.roll_random_mode([HittingBallSeekingModes.RANDOM, HittingBallSeekingModes.CLOSEST_SCORING_PLAYER]);
-                        difference_vector = null;
-                    }
-                    break;
-                case HittingBallSeekingModes.PLAYER:
-                    difference_vector = new b2Vec2(this.seeking_player.player_body.GetPosition().x - this.ball_body.GetPosition().x, this.seeking_player.player_body.GetPosition().y - this.ball_body.GetPosition().y);
-                    break;
-                case HittingBallSeekingModes.CLOSEST_SCORING_PLAYER:
-                    const closest_player = this.game.players.reduce((min_player, player) => distance_between_player_and_ball(player, this.game.scoring_ball) < distance_between_player_and_ball(min_player, this.game.scoring_ball) ? player : min_player, this.game.players[0]);
-                    difference_vector = new b2Vec2(closest_player.player_body.GetPosition().x - this.ball_body.GetPosition().x, closest_player.player_body.GetPosition().y - this.ball_body.GetPosition().y);
-                    break;
-                case HittingBallSeekingModes.SCORING_BALL:
-                    difference_vector = new b2Vec2(this.game.scoring_ball.ball_body.GetPosition().x - this.ball_body.GetPosition().x, this.game.scoring_ball.ball_body.GetPosition().y - this.ball_body.GetPosition().y);
-                    if (vector_magnitude(difference_vector) - this.ball_body.GetFixtureList().GetShape().GetRadius() - this.game.scoring_ball.ball_body.GetFixtureList().GetShape().GetRadius()<= HITTING_BALL_STOP_SEEKING_SCORING_BALL_DISTANCE) {
-                        this.roll_random_mode();
-                        difference_vector = null;
-                    }
-                    break;
-            }
-            if (difference_vector !== null) {
-                const direction_vector = new b2Vec2(difference_vector.x / vector_magnitude(difference_vector), difference_vector.y / vector_magnitude(difference_vector));
-                this.ball_body.ApplyForce(new b2Vec2(HITTING_BALL_SEEKING_LINEAR_FORCE * direction_vector.x, HITTING_BALL_SEEKING_LINEAR_FORCE * direction_vector.y), this.ball_body.GetWorldCenter(), true);
-                const linear_velocity = this.ball_body.GetLinearVelocity();
-                const speed = vector_magnitude(linear_velocity);
-                const target_angle = Math.atan2(direction_vector.y, direction_vector.x);
-                const current_angle = Math.atan2(linear_velocity.y, linear_velocity.x);
-                const new_angle = clamp(target_angle - current_angle, -HITTING_BALL_TURN_SPEED / FPS, HITTING_BALL_TURN_SPEED / FPS) + current_angle;
-                this.ball_body.SetLinearVelocity(new b2Vec2(Math.cos(new_angle) * speed, Math.sin(new_angle) * speed));
-            }
+        let difference_vector = null;
+        switch(this.seeking_mode) {
+            case HittingBallSeekingModes.RANDOM:
+                difference_vector = new b2Vec2(this.seeking_position.x - this.ball_body.GetPosition().x, this.seeking_position.y - this.ball_body.GetPosition().y);
+                if (vector_magnitude(difference_vector) <= this.ball_body.GetFixtureList().GetShape().GetRadius()) {
+                    this.roll_random_mode([HittingBallSeekingModes.RANDOM, HittingBallSeekingModes.CLOSEST_SCORING_PLAYER]);
+                    difference_vector = null;
+                }
+                break;
+            case HittingBallSeekingModes.PLAYER:
+                difference_vector = new b2Vec2(this.seeking_player.player_body.GetPosition().x - this.ball_body.GetPosition().x, this.seeking_player.player_body.GetPosition().y - this.ball_body.GetPosition().y);
+                break;
+            case HittingBallSeekingModes.CLOSEST_SCORING_PLAYER:
+                const closest_player = this.game.players.reduce((min_player, player) => distance_between_player_and_ball(player, this.game.scoring_ball) < distance_between_player_and_ball(min_player, this.game.scoring_ball) ? player : min_player, this.game.players[0]);
+                difference_vector = new b2Vec2(closest_player.player_body.GetPosition().x - this.ball_body.GetPosition().x, closest_player.player_body.GetPosition().y - this.ball_body.GetPosition().y);
+                break;
+            case HittingBallSeekingModes.SCORING_BALL:
+                difference_vector = new b2Vec2(this.game.scoring_ball.ball_body.GetPosition().x - this.ball_body.GetPosition().x, this.game.scoring_ball.ball_body.GetPosition().y - this.ball_body.GetPosition().y);
+                if (vector_magnitude(difference_vector) - this.ball_body.GetFixtureList().GetShape().GetRadius() - this.game.scoring_ball.ball_body.GetFixtureList().GetShape().GetRadius()<= HITTING_BALL_STOP_SEEKING_SCORING_BALL_DISTANCE) {
+                    this.roll_random_mode();
+                    difference_vector = null;
+                }
+                break;
+            case HittingBallSeekingModes.NONE:
+                difference_vector = null;
+                break;
+        }
+        if (difference_vector !== null) {
+            const direction_vector = new b2Vec2(difference_vector.x / vector_magnitude(difference_vector), difference_vector.y / vector_magnitude(difference_vector));
+            this.ball_body.ApplyForce(new b2Vec2(HITTING_BALL_SEEKING_LINEAR_FORCE * direction_vector.x, HITTING_BALL_SEEKING_LINEAR_FORCE * direction_vector.y), this.ball_body.GetWorldCenter(), true);
             const linear_velocity = this.ball_body.GetLinearVelocity();
-            const current_speed = vector_magnitude(linear_velocity);
-            const new_speed = Math.min(current_speed, MAX_HITTING_BALL_SPEED);
-            if (current_speed > 0) {
-                this.ball_body.SetLinearVelocity(new b2Vec2(linear_velocity.x / current_speed * new_speed, linear_velocity.y / current_speed * new_speed));
-            }
-        // } else if (this.recent_player_throw && vector_magnitude(this.ball_body.GetLinearVelocity()) < RECENT_PLAYER_THROW_MIN_SPEED) {
-        //     this.recent_player_throw = false;
-        //     this.roll_random_mode();
-        // } else {
-            // let aim_assist_target = null;
-            // let lowest_angle_difference = null;
-            // const ball_velocity = this.ball_body.GetLinearVelocity();
-            // const ball_velocity_angle = Math.atan2(ball_velocity.y, ball_velocity.x);
-            // for (const player_ii in this.game.players) {
-            //     const angle_difference = Math.abs(angle_difference(ball_velocity_angle, Math.atan2(this.game.players[player_ii].player_body.GetPosition().y - this.ball_body.GetPosition().y, this.game.players[player_ii].player_body.GetPosition().x - this.ball_body.GetPosition().x)))
-            //     if (lowest_angle_difference === null || angle_difference < lowest_angle_difference) {
-            //         lowest_angle_difference = angle_difference;
-            //         aim_assist_target = this.game.players[player_ii];
-            //     }
-            // }
-            // HITTING_BALL_PLAYER_AIM_ASSIST_FORCE
-        // }
+            const speed = vector_magnitude(linear_velocity);
+            const target_angle = Math.atan2(direction_vector.y, direction_vector.x);
+            const current_angle = Math.atan2(linear_velocity.y, linear_velocity.x);
+            const new_angle = clamp(angle_difference(target_angle, current_angle), -HITTING_BALL_TURN_SPEED / FPS, HITTING_BALL_TURN_SPEED / FPS) + current_angle;
+            this.ball_body.SetLinearVelocity(new b2Vec2(Math.cos(new_angle) * speed, Math.sin(new_angle) * speed));
+        }
+        const linear_velocity = this.ball_body.GetLinearVelocity();
+        const current_speed = vector_magnitude(linear_velocity);
+        const new_speed = Math.min(current_speed, MAX_HITTING_BALL_SPEED);
+        if (current_speed > 0) {
+            this.ball_body.SetLinearVelocity(new b2Vec2(linear_velocity.x / current_speed * new_speed, linear_velocity.y / current_speed * new_speed));
+        }
     }
 
     handle_logic() {
@@ -1025,6 +1069,7 @@ class Game {
         this.hitting_ball_1 = new HittingBall(this, FIELD_WIDTH_METERS / 2, FIELD_HEIGHT_METERS / 4);
         this.hitting_ball_2 = new HittingBall(this, FIELD_WIDTH_METERS / 2, FIELD_HEIGHT_METERS * 3 / 4);
         this.hitting_balls = [this.hitting_ball_1, this.hitting_ball_2];
+        this.grabbing_objects = [this.scoring_ball, this.hitting_ball_1, this.hitting_ball_2]; // Order is the precedence for grabbing.
 
         this.goal_1 = new Goal(this, FIELD_WIDTH_METERS / 10, GOAL_WIDTH / 2 + FIELD_LINE_WIDTH_METERS + 2 * GOAL_POST_RADIUS + 2 * SCORING_BALL_RADIUS, this.player2);
         this.goal_2 = new Goal(this, FIELD_WIDTH_METERS * 9 / 10, GOAL_WIDTH / 2 + FIELD_LINE_WIDTH_METERS + 2 * GOAL_POST_RADIUS + 2 * SCORING_BALL_RADIUS, this.player1);
@@ -1078,8 +1123,10 @@ class Game {
         }
 
         this.scoring_ball.apply_movement();
-        this.hitting_ball_1.apply_movement();
-        this.hitting_ball_2.apply_movement();
+        
+        for (const ii in this.hitting_balls) {
+            this.hitting_balls[ii].apply_movement();
+        }
 
         this.world.Step(TIME_STEP, VELOCITY_ITERATIONS, POSITION_ITERATIONS);
         this.remaining_match_time -= TIME_STEP;
@@ -1091,11 +1138,14 @@ class Game {
         }
         this.game_canvas.clear_canvas_and_draw_background();
         this.game_canvas.render_scoreboard(this.player1.score, this.player2.score, Math.ceil(this.remaining_match_time));
-        this.game_canvas.render_player(this.player1);
-        this.game_canvas.render_player(this.player2);
+        for (const player_ii in this.players) {
+            this.game_canvas.render_player(this.players[player_ii]);
+        }
         this.game_canvas.render_scoring_ball(this.scoring_ball);
-        this.game_canvas.render_hitting_ball(this.hitting_ball_1);
-        this.game_canvas.render_hitting_ball(this.hitting_ball_2);
+        for (const ii in this.hitting_balls) {
+            this.game_canvas.render_hitting_ball(this.hitting_balls[ii]);
+            
+        }
         for (const goal_ii in this.goals) {
             this.game_canvas.render_goal(this.goals[goal_ii]);
         }
