@@ -102,12 +102,16 @@ function vector_magnitude(vector) {
     return Math.sqrt(vector.x * vector.x + vector.y * vector.y);
 }
 
+function distance_between_positions(position1, position2) {
+    return vector_magnitude(new b2Vec2(position1.x - position2.x, position1.y - position2.y))
+}
+
 function distance_between_player_and_ball(player, ball) {
     const player_radius = player.player_body.GetFixtureList().GetShape().GetRadius();
     const ball_radius = ball.ball_body.GetFixtureList().GetShape().GetRadius();
     const player_position = player.player_body.GetPosition();
     const ball_position = ball.ball_body.GetPosition();
-    return vector_magnitude(new b2Vec2(player_position.x - ball_position.x, player_position.y - ball_position.y)) - player_radius - ball_radius;
+    return distance_between_positions(player_position, ball_position) - player_radius - ball_radius;
 }
 
 function clamp(value, min, max) {
@@ -368,7 +372,6 @@ class CustomContactListener {
                 switch(body.GetUserData()['type']) {
                     case BodyType.PLAYER:
                         const player = body.GetUserData()['object'];
-                        console.log(contact.GetManifold());
                         const contact_normal = contact.GetManifold().m_localPlaneNormal;
                         let contact_normal_magnitude = vector_magnitude(contact_normal);
                         if (contact_normal_magnitude === 0) {
@@ -541,29 +544,58 @@ class Player {
     }
 
     cpu_movement() {
-        if (random(0, 1) < 4 / FPS) {
-            if (random(0, 1) < 0.9) {
-                this.moving_forward = true;
-                this.moving_backward = false;
+        let target_position = null;
+        const grabbing_hitting_ball = this.grabbed_ball !== null && this.grabbed_ball.ball_body.GetUserData()['type'] === BodyType.HITTING_BALL;
+        const grabbing_scoring_ball = this.grabbed_ball !== null && this.grabbed_ball.ball_body.GetUserData()['type'] === BodyType.SCORING_BALL;
+        const opposing_player_position = this.game.player1 === this ? this.game.player2.player_body.GetPosition() : this.game.player1.player_body.GetPosition();
+        const target_goals = this.game.player1 === this ? this.game.player_1_target_goals : this.game.player_2_target_goals;
+        
+        if (grabbing_hitting_ball) {
+            target_position = opposing_player_position;
+        } else if (grabbing_scoring_ball) {
+            target_position = target_goals.reduce((closest_goal, goal) => distance_between_positions(goal.goal_sensor.GetPosition(), this.player_body.GetPosition()) < distance_between_positions(closest_goal.goal_sensor.GetPosition(), this.player_body.GetPosition()) ? goal : closest_goal, target_goals[0]).goal_sensor.GetPosition();
+        }
+        
+        if (target_position === null) {
+            // Seeking
+            if (distance_between_positions(opposing_player_position, this.game.scoring_ball.ball_body.GetPosition()) > distance_between_positions(this.player_body.GetPosition(), this.game.scoring_ball.ball_body.GetPosition())) {
+                target_position = this.game.scoring_ball.ball_body.GetPosition();
             } else {
-                this.moving_forward = false;
-                this.moving_backward = true;
+                target_position = this.game.hitting_balls.reduce((closest_ball, ball) => distance_between_positions(ball.ball_body.GetPosition(), this.player_body.GetPosition()) < distance_between_positions(closest_ball.ball_body.GetPosition(), this.player_body.GetPosition()) ? ball : closest_ball, this.game.hitting_balls[0]).ball_body.GetPosition();
             }
-        }
-        if (random(0, 1) < 1 / 2 / FPS) {
-            this.turning_left = random(0, 1) < 0.5;
-            this.turning_right = random(0, 1) < 0.5;
-        }
-        if (this.grabbed_ball === null) {
-            if (random(0, 1) < 1 / 2 / FPS) {
-                this.grab_throw = random(0, 1) < 0.25;
-            }
-        } else if (random(0, 1) < 1 / 2 / FPS) {
             this.grab_throw = true;
         } else {
             this.grab_throw = false;
         }
 
+        const angle_to_target = Math.atan2(target_position.y - this.player_body.GetPosition().y, target_position.x - this.player_body.GetPosition().x)
+        const angle_difference_to_target = angle_difference(angle_to_target, this.player_body.GetAngle());
+        if (grabbing_hitting_ball && Math.abs(angle_difference_to_target) < 45 * Math.PI / 180 && distance_between_positions(target_position, this.player_body.GetPosition()) < 50) {
+            this.grab_throw = true;
+        } else if (grabbing_scoring_ball && Math.abs(angle_difference_to_target) < 5 * Math.PI / 180 && distance_between_positions(target_position, this.player_body.GetPosition()) < 30) {
+            this.grab_throw = true;
+        }
+        
+        if (angle_difference_to_target > 1 * Math.PI / 180) {
+            this.turning_left = true;
+            this.turning_right = false;
+        } else if (angle_difference_to_target < -1 * Math.PI / 180) {
+            this.turning_left = false;
+            this.turning_right = true;
+        } else {
+            this.turning_left = false;
+            this.turning_right = false;
+        }
+        if (Math.abs(angle_difference_to_target) < 75 * Math.PI / 180 && distance_between_positions(target_position, this.player_body.GetPosition()) > 5) {
+            this.moving_forward = true;
+            this.moving_backward = false;
+        } else if (Math.abs(angle_difference_to_target) > 145 * Math.PI / 180 && distance_between_positions(target_position, this.player_body.GetPosition()) > 5) {
+            this.moving_forward = false;
+            this.moving_backward = true;
+        } else {
+            this.moving_forward = false;
+            this.moving_backward = false;
+        }
     }
 
     handle_logic() {
@@ -986,8 +1018,8 @@ class Game {
         this.paused = false;
         
         this.walls = new Walls(this.world)
-        this.player1 = new Player(this, 1, url_params.get('is_player1_human'));
-        this.player2 = new Player(this, 2, url_params.get('is_player2_human'));
+        this.player1 = new Player(this, 1, url_params.get('is_player1_human') === 'true');
+        this.player2 = new Player(this, 2, url_params.get('is_player2_human') === 'true');
         this.players = [this.player1, this.player2];
         this.scoring_ball = new ScoringBall(this);
         this.hitting_ball_1 = new HittingBall(this, FIELD_WIDTH_METERS / 2, FIELD_HEIGHT_METERS / 4);
@@ -1000,6 +1032,8 @@ class Game {
         this.goal_4 = new Goal(this, FIELD_WIDTH_METERS * 9 / 10, FIELD_HEIGHT_METERS / 2, this.player1);
         this.goal_5 = new Goal(this, FIELD_WIDTH_METERS / 10, FIELD_HEIGHT_METERS - GOAL_WIDTH / 2 - FIELD_LINE_WIDTH_METERS - 2 * GOAL_POST_RADIUS - 2 * SCORING_BALL_RADIUS, this.player2);
         this.goal_6 = new Goal(this, FIELD_WIDTH_METERS * 9 / 10, FIELD_HEIGHT_METERS - GOAL_WIDTH / 2 - FIELD_LINE_WIDTH_METERS - 2 * GOAL_POST_RADIUS - 2 * SCORING_BALL_RADIUS, this.player1);
+        this.player_1_target_goals = [this.goal_2, this.goal_4, this.goal_6]
+        this.player_2_target_goals = [this.goal_1, this.goal_3, this.goal_5]
         this.goals = [this.goal_1, this.goal_2, this.goal_3, this.goal_4, this.goal_5, this.goal_6];
 
         const contact_listener = new CustomContactListener(this.players, this.goals, this.scoring_ball, this.hitting_balls);
