@@ -1099,6 +1099,9 @@ class Game {
         for (const goal_ii in this.goals) {
             this.game_canvas.render_goal(this.goals[goal_ii]);
         }
+        if (this.remaining_match_time < 0) {
+            toggle_pause();
+        }
     }
 }
 
@@ -1107,6 +1110,12 @@ const game = new Game();
 const pause_menu = document.getElementById('pauseMenu');
 
 function toggle_pause() {
+    if (game.remaining_match_time < 0) {
+        game.paused = true;
+        pause_menu.style.visibility = 'visible';
+        resume_button.style.display = 'none';
+        return;
+    }
     game.paused = !game.paused;
     if (game.paused) {
         pause_menu.style.visibility = 'visible';
