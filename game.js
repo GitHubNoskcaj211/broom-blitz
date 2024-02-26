@@ -814,10 +814,11 @@ const HittingBallSeekingModes = Object.freeze({
 })
 
 class HittingBall extends GrabbableBall {
-    constructor(game, starting_x, starting_y) {
+    constructor(game, starting_x, starting_y, disable_seeking_hitting_ball) {
         super(game, HITTING_BALL_RADIUS, HITTING_BALL_FRICTION, HITTING_BALL_RESTITUTION, HITTING_BALL_LINEAR_DAMPING, HITTING_BALL_MASS, HITTING_BALL_INERTIA, HITTING_BALL_GRAB_DISTANCE, MAX_HITTING_BALL_SPEED, BodyType.HITTING_BALL)
         this.starting_x = starting_x;
         this.starting_y = starting_y;
+        this.disable_seeking_hitting_ball = disable_seeking_hitting_ball;
         this.reset_ball();
     }
 
@@ -829,6 +830,10 @@ class HittingBall extends GrabbableBall {
     }
 
     roll_random_mode(mode_options) {
+        if (this.disable_seeking_hitting_ball) {
+            this.seeking_mode = HittingBallSeekingModes.NONE;
+            return;
+        }
         this.seeking_mode = mode_options[random_int(mode_options.length - 1)];
         this.time_to_change_seeking_mode = this.game.remaining_match_time - random(HITTING_BALL_MIN_TIME_BETWEEN_SEEKING_MODES, HITTING_BALL_MAX_TIME_BETWEEN_SEEKING_MODES);
         this.seeking_player = this.game.players[random_int(this.game.players.length - 1)];
@@ -1061,13 +1066,15 @@ class Game {
         this.remaining_match_time = GAME_TIME_SECONDS;
         this.paused = false;
         
+        this.disable_seeking_hitting_ball = url_params.get('disable_seeking_hitting_ball') !== null && url_params.get('disable_seeking_hitting_ball') === 'true';
+
         this.walls = new Walls(this.world)
-        this.player1 = new Player(this, 1, url_params.get('is_player1_human') === 'true');
-        this.player2 = new Player(this, 2, url_params.get('is_player2_human') === 'true');
+        this.player1 = new Player(this, 1, url_params.get('is_player1_human') !== null && url_params.get('is_player1_human') === 'true');
+        this.player2 = new Player(this, 2, url_params.get('is_player2_human') !== null && url_params.get('is_player2_human') === 'true');
         this.players = [this.player1, this.player2];
         this.scoring_ball = new ScoringBall(this);
-        this.hitting_ball_1 = new HittingBall(this, FIELD_WIDTH_METERS / 2, FIELD_HEIGHT_METERS / 4);
-        this.hitting_ball_2 = new HittingBall(this, FIELD_WIDTH_METERS / 2, FIELD_HEIGHT_METERS * 3 / 4);
+        this.hitting_ball_1 = new HittingBall(this, FIELD_WIDTH_METERS / 2, FIELD_HEIGHT_METERS / 4, this.disable_seeking_hitting_ball);
+        this.hitting_ball_2 = new HittingBall(this, FIELD_WIDTH_METERS / 2, FIELD_HEIGHT_METERS * 3 / 4, this.disable_seeking_hitting_ball);
         this.hitting_balls = [this.hitting_ball_1, this.hitting_ball_2];
         this.grabbing_objects = [this.scoring_ball, this.hitting_ball_1, this.hitting_ball_2]; // Order is the precedence for grabbing.
 

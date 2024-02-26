@@ -1,1 +1,59 @@
-TODO
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Broom Blitz</title>
+  <link rel="stylesheet" href="instructions.css"> <!-- Link to an external CSS file -->
+</head>
+<body>
+  <div class="container">
+    <div class="column">
+      <div class="section">
+        <h2>Overview</h2>
+        <ul>
+          <li>Objective of Broom Blitz is to end the game with the highest score.</li>
+          <li>Match length is 200 seconds.</li>
+          <li>Play against another player or play against a CPU!</li>
+          <li>Pause the game with escape.</li>
+        </ul>
+        <h2>Movement</h2>
+        <ul>
+          <li>Move your player with WASD (player 1) and PL:' (player 2).</li>
+          <li>Grab & throw the game balls with left shift (player 1) and right shift (player 2).</li>
+          <li>An indicator around a ball will show up when you are able to grab it.</li>
+          <li>Throwing a ball will launch it from in front of your player in the direction you are facing.</li>
+          <li>When you are holding a ball you move slightly slower.</li>
+          <li>There is a 250 ms delay from when you grab a ball to when you can throw it.</li>
+          <li>There is a 750 ms delay to grab another ball when you throw a ball.</li>
+          <li>There is a 750 ms delay to grab another ball when your ball is stolen (grabbed out of your hand by the opponent).</li>
+          <li>You can only grab one ball at a time, and a ball will be thrown before another is grabbed.</li>
+        </ul>
+        
+      </div>
+    </div>
+    <div class="column">
+      <div class="section">
+        <h2>Scoring Ball</h2>
+        <ul>
+          <li>The scoring ball is the small ball.</li>
+          <li>Throwing the scoring into any of the opposing player goals will award you 10 points.</li>
+        </ul>
+        <h2>Hitting Ball</h2>
+        <ul>
+          <li>There are two large hitting balls.</li>
+          <li>If the hitting ball hits a player it will stun them for a short period of time.</li>
+          <li>A stunned player will drop their ball and cannot move or grab.</li>
+          <li>If a hitting ball is thrown in the direction of the opponent, it will lock onto the opposing player for a short time.</li>
+          <li>When not grabbed, the hitting ball AI will randomly roam the map.</li>
+          <li>The test game below has the hitting ball AI turned off so you can learn movement. The real game has it turned on.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <div class="button-section">
+    <button class="btn test-match-btn" onclick="window.location.href='game.html?is_player1_human=true&is_player2_human=true&disable_seeking_hitting_ball=true'">Test Game (No Hitting Ball AI)</button>
+    <button class="btn main-menu-btn" onclick="window.location.href='index.html'">Main Menu</button>
+  </div>
+</body>
+</html>
