@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Broom Blitz</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #f0f0f0;
+        }
+        .container {
+            width: 80%;
+            max-width: 800px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .split {
+            display: flex;
+            width: 100%;
+            justify-content: space-between;
+            margin-bottom: 20px;
+        }
+        .column {
+            width: 48%; /* Adjust width as needed */
+        }
+        .button {
+            padding: 10px 20px;
+            font-size: 18px;
+            background-color: #007bff;
+            color: #fff;
+            text-decoration: none;
+            border-radius: 5px;
+            transition: background-color 0.3s;
+        }
+        .button:hover {
+            background-color: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="split">
+            <div class="column">
+                <h2>Player 1 Settings</h2>
+                <input type="radio" name="player1" value="human"> Human<br>
+                <input type="radio" name="player1" value="cpu"> CPU<br>
+            </div>
+            <div class="column">
+                <h2>Player 2 Settings</h2>
+                <input type="radio" name="player2" value="human"> Human<br>
+                <input type="radio" name="player2" value="cpu"> CPU<br>
+            </div>
+        </div>
+        <a href="#" id="playButton" class="button">Play</a>
+    </div>
+
+    <script>
+        document.getElementById('playButton').addEventListener('click', function() {
+            // Get selected options
+            let is_player_1_human = document.querySelector('input[name="player1"]:checked').value === 'human';
+            let is_player_2_human = document.querySelector('input[name="player2"]:checked').value === 'human';
+
+            // Redirect to game.html with player settings in URL
+            window.location.href = 'game.html?is_player1_human=' + is_player_1_human + '&is_player1_human=' + is_player_2_human;
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Broom Blitz</title>
+    <link rel="stylesheet" type="text/css" href="game.css">
+    <script src="Box2D.min.js"></script>
+</head>
+<body>
+    <canvas id="gameCanvas" width="800" height="600"></canvas>
+    <div id="pauseMenu" class="hidden">
+        <div class="overlay"></div>
+        <div class="menu">
+            <button id="resumeButton">Resume</button>
+            <button id="restartButton">Restart</button>
+            <button id="mainMenuButton">Main Menu</button>
+        </div>
+    </div>
+    <script src="game.js"></script>
+</body>
+</html>
