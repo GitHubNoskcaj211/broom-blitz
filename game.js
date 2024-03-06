@@ -25,6 +25,7 @@ const SCOREBOARD_TEXT_BUFFER_PIXELS = 5;
 const GAME_TIME_SECONDS = 200;
 
 const PLAYER_RADIUS = 1;
+const SCALE_PLAYER_GRAPHIC = 2.0;
 const MAX_FORWARD_PLAYER_SPEED = 20; // meters per second
 const MAX_FORWARD_PLAYER_SPEED_WHEN_GRABBING_BALL = 16;
 const MAX_BACKWARD_PLAYER_SPEED = 5; // meters per second
@@ -40,7 +41,7 @@ const PLAYER_GRAB_DELAY_SECONDS = 0.25;
 const PLAYER_THROW_DELAY_SECONDS = 0.75;
 const PLAYER_DROPPED_BALL_GRAB_DELAY_SECONDS = 0.75;
 const PLAYER_STUN_DURATION = 1;
-const PLAYER_STUN_NUMBER_OF_ROTATIONS = 6;
+const PLAYER_STUN_NUMBER_OF_ROTATIONS = 4;
 const PLAYER_LINEAR_DAMPING = 0.5;
 const PLAYER_CONTACT_BUMPER_VELOCITY = 1.0;
 
@@ -96,6 +97,30 @@ const GOAL_POST_RADIUS = 0.5;
 const GOAL_POST_FRICTION = 0.0;
 const GOAL_POST_RESTITUTION = 0.5;
 const GOAL_COLOR = "rgb(255 255 255 / 100%)";
+
+class GraphicsElement {
+    constructor() {
+        this.images = [];
+    }
+
+    is_graphic_ready() {
+        return this.images.every(image => image.complete);
+    }
+}
+
+class PlayerGraphics extends GraphicsElement {
+    constructor() {
+        super();
+        this.player_normal = new Image();
+        this.player_normal.src = 'art/player_normal.svg';
+
+        this.player_grabbing = new Image();
+        this.player_grabbing.src = 'art/player_grabbing.svg';
+
+        this.images = [this.player_normal, this.player_grabbing];
+    }
+}
+
 
 function random(min, max) {
     return Math.random() * (max - min) + min;
@@ -188,6 +213,7 @@ class GameCanvas {
     }
 
     clear_canvas_and_draw_background() {
+        this.canvas.innerText = '';
         this.context.clearRect(0, 0, this.game_width, this.game_height);
         
         // Background
@@ -219,7 +245,7 @@ class GameCanvas {
     render_player(player) {
         const body_position = player.player_body.GetPosition();
         const body_angle = player.player_body.GetAngle();
-
+    
         const fixture = player.player_body.GetFixtureList();
         const circle_shape = fixture.GetShape();
         const radius = circle_shape.GetRadius();
@@ -227,22 +253,35 @@ class GameCanvas {
         const canvas_center_x = body_position.x * this.scale;
         const canvas_center_y = this.game_height - (body_position.y * this.scale);
         const canvas_angle = -body_angle;
-
+    
+        // Load the SVG file
+    
+        // Draw the SVG onto the canvas at the player's position and angle
+        const player_graphic_to_draw = player.can_grab() ? player.player_graphics.player_normal : player.player_graphics.player_grabbing;
+        console.assert(player_graphic_to_draw.complete, "Player graphic not ready.");
+        const scale = (radius * this.scale * 2 * SCALE_PLAYER_GRAPHIC) / player_graphic_to_draw.width;
+        this.context.save();
+        this.context.translate(canvas_center_x, canvas_center_y);
+        this.context.rotate(canvas_angle);
+        this.context.scale(scale, scale);
+        this.context.drawImage(player_graphic_to_draw, -player_graphic_to_draw.width / 2, -player_graphic_to_draw.height / 2, player_graphic_to_draw.width, player_graphic_to_draw.height);
+        this.context.restore();
+        
         // Draw circle
-        this.context.beginPath();
-        this.context.arc(canvas_center_x, canvas_center_y, radius * this.scale, 0, 2 * Math.PI);
-        this.context.fillStyle = player.player_color;
-        this.context.fill();
+        // this.context.beginPath();
+        // this.context.arc(canvas_center_x, canvas_center_y, radius * this.scale, 0, 2 * Math.PI);
+        // this.context.fillStyle = player.player_color;
+        // this.context.fill();
          
         // Draw line
-        const edge_x = canvas_center_x + radius * this.scale * Math.cos(canvas_angle);
-        const edge_y = canvas_center_y + radius * this.scale * Math.sin(canvas_angle);
-        this.context.beginPath();
-        this.context.moveTo(canvas_center_x, canvas_center_y);
-        this.context.lineTo(edge_x, edge_y);
-        this.context.lineWidth = 3;
-        this.context.strokeStyle = 'black';
-        this.context.stroke();
+        // const edge_x = canvas_center_x + radius * this.scale * Math.cos(canvas_angle);
+        // const edge_y = canvas_center_y + radius * this.scale * Math.sin(canvas_angle);
+        // this.context.beginPath();
+        // this.context.moveTo(canvas_center_x, canvas_center_y);
+        // this.context.lineTo(edge_x, edge_y);
+        // this.context.lineWidth = 3;
+        // this.context.strokeStyle = 'black';
+        // this.context.stroke();
     }
 
     render_scoring_ball(scoring_ball) {
@@ -403,7 +442,7 @@ class CustomContactListener {
 }
 
 class Player {
-    constructor(game, player_number, human_controlled) {
+    constructor(game, player_number, human_controlled, player_graphics) {
         this.game = game
         this.player_number = player_number;
         this.human_controlled = human_controlled;
@@ -440,6 +479,8 @@ class Player {
         this.collision_with_hitting_ball = false
         this.collision_with_player = false
         this.time_stopped_stunned = game.remaining_match_time;
+
+        this.player_graphics = player_graphics;
 
         this.reset_player();
     }
@@ -1060,7 +1101,7 @@ class Goal {
 }
 
 class Game {
-    constructor() {
+    constructor(player_1_graphics, player_2_graphics) {
         this.game_canvas = new GameCanvas();
         this.world = new b2World(new b2Vec2(0, 0), false);
         this.remaining_match_time = GAME_TIME_SECONDS;
@@ -1069,8 +1110,8 @@ class Game {
         this.disable_seeking_hitting_ball = url_params.get('disable_seeking_hitting_ball') !== null && url_params.get('disable_seeking_hitting_ball') === 'true';
 
         this.walls = new Walls(this.world)
-        this.player1 = new Player(this, 1, url_params.get('is_player1_human') !== null && url_params.get('is_player1_human') === 'true');
-        this.player2 = new Player(this, 2, url_params.get('is_player2_human') !== null && url_params.get('is_player2_human') === 'true');
+        this.player1 = new Player(this, 1, url_params.get('is_player1_human') !== null && url_params.get('is_player1_human') === 'true', player_1_graphics);
+        this.player2 = new Player(this, 2, url_params.get('is_player2_human') !== null && url_params.get('is_player2_human') === 'true', player_2_graphics);
         this.players = [this.player1, this.player2];
         this.scoring_ball = new ScoringBall(this);
         this.hitting_ball_1 = new HittingBall(this, FIELD_WIDTH_METERS / 2, FIELD_HEIGHT_METERS / 4, this.disable_seeking_hitting_ball);
@@ -1162,8 +1203,11 @@ class Game {
     }
 }
 
+const player_1_graphics = new PlayerGraphics();
+const player_2_graphics = new PlayerGraphics();
+const all_graphics = [player_1_graphics, player_2_graphics];
 const url_params = new URLSearchParams(window.location.search);
-const game = new Game();
+const game = new Game(player_1_graphics, player_2_graphics);
 const pause_menu = document.getElementById('pauseMenu');
 
 function toggle_pause() {
@@ -1213,8 +1257,12 @@ document.addEventListener('keyup', function(event) {
 });
 
 function run() {
-    game.update();
-    game.render();
+    if (all_graphics.every(graphic => graphic.is_graphic_ready())) {
+        game.update();
+        game.render();
+    } else {
+        // TODO loading
+    }
 }
 
 setInterval(run, 1000 / FPS);
