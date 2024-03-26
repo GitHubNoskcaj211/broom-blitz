@@ -121,6 +121,26 @@ class PlayerGraphics extends GraphicsElement {
     }
 }
 
+class ScoringBallGraphics extends GraphicsElement {
+    constructor() {
+        super();
+        this.scoring_ball = new Image();
+        this.scoring_ball.src = 'art/scoring_ball.svg';
+
+        this.images = [this.scoring_ball];
+    }
+}
+
+class HittingBallGraphics extends GraphicsElement {
+    constructor() {
+        super();
+        this.hitting_ball = new Image();
+        this.hitting_ball.src = 'art/hitting_ball.svg';
+
+        this.images = [this.hitting_ball];
+    }
+}
+
 
 function random(min, max) {
     return Math.random() * (max - min) + min;
@@ -286,40 +306,64 @@ class GameCanvas {
 
     render_scoring_ball(scoring_ball) {
         const body_position = scoring_ball.ball_body.GetPosition();
+        const body_angle = scoring_ball.ball_body.GetAngle();
         const canvas_center_x = body_position.x * this.scale;
         const canvas_center_y = this.game_height - (body_position.y * this.scale);
+        const canvas_angle = -body_angle;
         const radius = scoring_ball.ball_body.GetFixtureList().GetShape().GetRadius();
 
         const grabbable_players = scoring_ball.get_grabbable_players();
         const grabbable_players_colors = grabbable_players.map((player) => player.player_color);
-        const stroke_color = (grabbable_players_colors.length == 0) ? SCORING_BALL_COLOR : (grabbable_players_colors.length >= 2) ? BOTH_PLAYERS_COLOR : grabbable_players_colors[0];
         
-        this.context.beginPath();
-        this.context.arc(canvas_center_x, canvas_center_y, radius * this.scale, 0, 2 * Math.PI);
-        this.context.fillStyle = SCORING_BALL_COLOR;
-        this.context.lineWidth = radius * this.scale * BALL_GRABBABLE_STROKE_PERCENTAGE;
-        this.context.strokeStyle = stroke_color;
-        this.context.fill();
-        this.context.stroke();
+        const graphic_to_draw = scoring_ball_graphics.images[0]
+        console.assert(graphic_to_draw.complete, "Scoring ball graphic not ready.");
+        const scale = (radius * this.scale * 2) / graphic_to_draw.width;
+        this.context.save();
+        this.context.translate(canvas_center_x, canvas_center_y);
+        this.context.rotate(canvas_angle);
+        this.context.scale(scale, scale);
+        this.context.drawImage(graphic_to_draw, -graphic_to_draw.width / 2, -graphic_to_draw.height / 2, graphic_to_draw.width, graphic_to_draw.height);
+        this.context.restore();
+
+        if (grabbable_players_colors.length != 0) {
+            const stroke_color = (grabbable_players_colors.length >= 2) ? BOTH_PLAYERS_COLOR : grabbable_players_colors[0];
+            this.context.beginPath();
+            this.context.arc(canvas_center_x, canvas_center_y, radius * this.scale, 0, 2 * Math.PI);
+            this.context.lineWidth = radius * this.scale * BALL_GRABBABLE_STROKE_PERCENTAGE;
+            this.context.strokeStyle = stroke_color;
+            this.context.stroke();
+        }
     }
 
     render_hitting_ball(hitting_ball) {
         const body_position = hitting_ball.ball_body.GetPosition();
+        const body_angle = hitting_ball.ball_body.GetAngle();
         const canvas_center_x = body_position.x * this.scale;
         const canvas_center_y = this.game_height - (body_position.y * this.scale);
+        const canvas_angle = -body_angle;
         const radius = hitting_ball.ball_body.GetFixtureList().GetShape().GetRadius();
 
         const grabbable_players = hitting_ball.get_grabbable_players();
         const grabbable_players_colors = grabbable_players.map((player) => player.player_color);
-        const stroke_color = (grabbable_players_colors.length == 0) ? HITTING_BALL_COLOR : (grabbable_players_colors.length > 2) ? BOTH_PLAYERS_COLOR : grabbable_players_colors[0];
-        
-        this.context.beginPath();
-        this.context.arc(canvas_center_x, canvas_center_y, radius * this.scale, 0, 2 * Math.PI);
-        this.context.fillStyle = HITTING_BALL_COLOR;
-        this.context.lineWidth = radius * this.scale * BALL_GRABBABLE_STROKE_PERCENTAGE;
-        this.context.strokeStyle = stroke_color;
-        this.context.fill();
-        this.context.stroke();
+
+        const graphic_to_draw = hitting_ball_graphics.images[0]
+        console.assert(graphic_to_draw.complete, "Hitting ball graphic not ready.");
+        const scale = (radius * this.scale * 2) / graphic_to_draw.width;
+        this.context.save();
+        this.context.translate(canvas_center_x, canvas_center_y);
+        this.context.rotate(canvas_angle);
+        this.context.scale(scale, scale);
+        this.context.drawImage(graphic_to_draw, -graphic_to_draw.width / 2, -graphic_to_draw.height / 2, graphic_to_draw.width, graphic_to_draw.height);
+        this.context.restore();
+
+        if (grabbable_players_colors.length != 0) {
+            const stroke_color = (grabbable_players_colors.length >= 2) ? BOTH_PLAYERS_COLOR : grabbable_players_colors[0];
+            this.context.beginPath();
+            this.context.arc(canvas_center_x, canvas_center_y, radius * this.scale, 0, 2 * Math.PI);
+            this.context.lineWidth = radius * this.scale * BALL_GRABBABLE_STROKE_PERCENTAGE;
+            this.context.strokeStyle = stroke_color;
+            this.context.stroke();
+        }
     }
 
     render_goal(goal) {
@@ -1205,7 +1249,9 @@ class Game {
 
 const player_1_graphics = new PlayerGraphics();
 const player_2_graphics = new PlayerGraphics();
-const all_graphics = [player_1_graphics, player_2_graphics];
+const scoring_ball_graphics = new ScoringBallGraphics();
+const hitting_ball_graphics = new HittingBallGraphics();
+const all_graphics = [player_1_graphics, player_2_graphics, scoring_ball_graphics, hitting_ball_graphics];
 const url_params = new URLSearchParams(window.location.search);
 const game = new Game(player_1_graphics, player_2_graphics);
 const pause_menu = document.getElementById('pauseMenu');
