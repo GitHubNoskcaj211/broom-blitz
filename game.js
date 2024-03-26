@@ -1159,12 +1159,12 @@ class Game {
         this.hitting_balls = [this.hitting_ball_1, this.hitting_ball_2];
         this.grabbing_objects = [this.scoring_ball, this.hitting_ball_1, this.hitting_ball_2]; // Order is the precedence for grabbing.
 
-        this.goal_1 = new Goal(this, FIELD_WIDTH_METERS / 10, GOAL_WIDTH / 2 + FIELD_LINE_WIDTH_METERS + 2 * GOAL_POST_RADIUS + 2 * SCORING_BALL_RADIUS, this.player2);
-        this.goal_2 = new Goal(this, FIELD_WIDTH_METERS * 9 / 10, GOAL_WIDTH / 2 + FIELD_LINE_WIDTH_METERS + 2 * GOAL_POST_RADIUS + 2 * SCORING_BALL_RADIUS, this.player1);
-        this.goal_3 = new Goal(this, FIELD_WIDTH_METERS / 10, FIELD_HEIGHT_METERS / 2, this.player2);
-        this.goal_4 = new Goal(this, FIELD_WIDTH_METERS * 9 / 10, FIELD_HEIGHT_METERS / 2, this.player1);
-        this.goal_5 = new Goal(this, FIELD_WIDTH_METERS / 10, FIELD_HEIGHT_METERS - GOAL_WIDTH / 2 - FIELD_LINE_WIDTH_METERS - 2 * GOAL_POST_RADIUS - 2 * SCORING_BALL_RADIUS, this.player2);
-        this.goal_6 = new Goal(this, FIELD_WIDTH_METERS * 9 / 10, FIELD_HEIGHT_METERS - GOAL_WIDTH / 2 - FIELD_LINE_WIDTH_METERS - 2 * GOAL_POST_RADIUS - 2 * SCORING_BALL_RADIUS, this.player1);
+        this.goal_1 = new Goal(this, FIELD_WIDTH_METERS * 0.15, GOAL_WIDTH / 2 + FIELD_LINE_WIDTH_METERS + 2 * GOAL_POST_RADIUS + 2 * SCORING_BALL_RADIUS, this.player2);
+        this.goal_2 = new Goal(this, FIELD_WIDTH_METERS * 0.85, GOAL_WIDTH / 2 + FIELD_LINE_WIDTH_METERS + 2 * GOAL_POST_RADIUS + 2 * SCORING_BALL_RADIUS, this.player1);
+        this.goal_3 = new Goal(this, FIELD_WIDTH_METERS * 0.15, FIELD_HEIGHT_METERS / 2, this.player2);
+        this.goal_4 = new Goal(this, FIELD_WIDTH_METERS * 0.85, FIELD_HEIGHT_METERS / 2, this.player1);
+        this.goal_5 = new Goal(this, FIELD_WIDTH_METERS * 0.15, FIELD_HEIGHT_METERS - GOAL_WIDTH / 2 - FIELD_LINE_WIDTH_METERS - 2 * GOAL_POST_RADIUS - 2 * SCORING_BALL_RADIUS, this.player2);
+        this.goal_6 = new Goal(this, FIELD_WIDTH_METERS * 0.85, FIELD_HEIGHT_METERS - GOAL_WIDTH / 2 - FIELD_LINE_WIDTH_METERS - 2 * GOAL_POST_RADIUS - 2 * SCORING_BALL_RADIUS, this.player1);
         this.player_1_target_goals = [this.goal_2, this.goal_4, this.goal_6]
         this.player_2_target_goals = [this.goal_1, this.goal_3, this.goal_5]
         this.goals = [this.goal_1, this.goal_2, this.goal_3, this.goal_4, this.goal_5, this.goal_6];
