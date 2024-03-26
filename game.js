@@ -505,6 +505,10 @@ class Player {
         this.player_body.SetUserData({'type': BodyType.PLAYER, 'object': this});
         this.player_body.SetLinearDamping(PLAYER_LINEAR_DAMPING);
 
+
+        // TODO atributes to choose?
+        
+        
         // TODO atributes to choose?
         
         const mass_data = new Box2D.Collision.Shapes.b2MassData();
@@ -514,7 +518,7 @@ class Player {
         this.player_body.SetMassData(mass_data);
 
         this.grabbed_ball = null;
-        this.next_grab_throw_time = game.remaining_match_time;
+        this.next_grab_time = game.remaining_match_time;
 
         this.player_color = (this.player_number === 1) ? PLAYER_1_COLOR : PLAYER_2_COLOR;
         
@@ -565,7 +569,7 @@ class Player {
         this.moving_backward = false;
         this.turning_left = false;
         this.turning_right = false;
-        this.grab_throw = false;
+        this.grab = false;
     }
 
     is_stunned() {
@@ -573,7 +577,7 @@ class Player {
     }
 
     can_grab() {
-        return this.next_grab_throw_time > this.game.remaining_match_time && !this.is_stunned();
+        return this.next_grab_time > this.game.remaining_match_time && !this.is_stunned();
     }
 
     apply_movement() {
@@ -624,24 +628,21 @@ class Player {
             const success = ball.grabbed_by_player(this);
             if (success) {
                 this.grabbed_ball = ball;
-                this.next_grab_throw_time = this.game.remaining_match_time - PLAYER_GRAB_DELAY_SECONDS;
                 return; // Can only grab one thing.
             }
         }
     }
 
     handle_throwing() {
+        console.log('Throwing.')
         this.grabbed_ball.throw();
-        this.next_grab_throw_time = this.game.remaining_match_time - PLAYER_THROW_DELAY_SECONDS;
+        this.next_grab_time = this.game.remaining_match_time - PLAYER_THROW_DELAY_SECONDS;
     }
 
     handle_grab_throw() {
-        if (!this.can_grab()) {
-            return;
-        }
-        if (this.grabbed_ball === null) {
+        if (this.grab && this.grabbed_ball === null && this.can_grab()) {
             this.handle_grabbing(this.game.grabbing_objects)
-        } else {
+        } else if (!this.grab && this.grabbed_ball !== null) {
             this.handle_throwing();
         }
     }
@@ -659,7 +660,7 @@ class Player {
         } else if (grabbing_scoring_ball) {
             target_position = target_goals.reduce((closest_goal, goal) => distance_between_positions(goal.goal_sensor.GetPosition(), this.player_body.GetPosition()) < distance_between_positions(closest_goal.goal_sensor.GetPosition(), this.player_body.GetPosition()) ? goal : closest_goal, target_goals[0]).goal_sensor.GetPosition();
         }
-        
+        this.grab = true;
         if (target_position === null) {
             // Seeking
             const closest_hitting_ball_position = this.game.hitting_balls.reduce((closest_ball, ball) => distance_between_positions(ball.ball_body.GetPosition(), this.player_body.GetPosition()) < distance_between_positions(closest_ball.ball_body.GetPosition(), this.player_body.GetPosition()) ? ball : closest_ball, this.game.hitting_balls[0]).ball_body.GetPosition()
@@ -672,17 +673,14 @@ class Player {
             } else {
                 target_position = closest_hitting_ball_position;
             }
-            this.grab_throw = true;
-        } else {
-            this.grab_throw = false;
         }
 
         const angle_to_target = Math.atan2(target_position.y - this.player_body.GetPosition().y, target_position.x - this.player_body.GetPosition().x)
         const angle_difference_to_target = angle_difference(angle_to_target, this.player_body.GetAngle());
         if (grabbing_hitting_ball && Math.abs(angle_difference_to_target) < 45 * Math.PI / 180 && distance_between_positions(target_position, this.player_body.GetPosition()) < 50) {
-            this.grab_throw = true;
+            this.grab = false;
         } else if (grabbing_scoring_ball && Math.abs(angle_difference_to_target) < 5 * Math.PI / 180 && distance_between_positions(target_position, this.player_body.GetPosition()) < 15) {
-            this.grab_throw = true;
+            this.grab = false;
         }
         
         if (angle_difference_to_target > 1 * Math.PI / 180) {
@@ -721,9 +719,7 @@ class Player {
             this.drop_ball();
             this.collision_with_player = false;
         }
-        if (this.grab_throw) {
-            this.handle_grab_throw()
-        }
+        this.handle_grab_throw()
     }
 
     drop_ball() {
@@ -755,7 +751,7 @@ class Player {
                 break;
             case 'ShiftLeft':
             case 'ShiftRight':
-                this.grab_throw = true;
+                this.grab = true;
                 break;
         }
     }
@@ -783,7 +779,7 @@ class Player {
                 break;
             case 'ShiftLeft':
             case 'ShiftRight':
-                this.grab_throw = false;
+                this.grab = false;
                 break;
         }
     }
@@ -831,7 +827,7 @@ class GrabbableBall {
 
     grabbed_by_player(player) {
         if (this.grabbing_player !== null) {
-            this.grabbing_player.next_grab_throw_time = this.game.remaining_match_time - PLAYER_DROPPED_BALL_GRAB_DELAY_SECONDS;
+            this.grabbing_player.next_grab_time = this.game.remaining_match_time - PLAYER_DROPPED_BALL_GRAB_DELAY_SECONDS;
         }
         this.remove_grab();
         this.grabbing_player = player;
@@ -850,7 +846,7 @@ class GrabbableBall {
 
     drop() {
         if (this.grabbing_player !== null) {
-            this.grabbing_player.next_grab_throw_time = this.game.remaining_match_time - PLAYER_DROPPED_BALL_GRAB_DELAY_SECONDS;
+            this.grabbing_player.next_grab_time = this.game.remaining_match_time - PLAYER_DROPPED_BALL_GRAB_DELAY_SECONDS;
         }
         this.ball_body.SetLinearVelocity(new b2Vec2(BALL_DROP_VELOCITY_PERCENT * this.grabbing_player.player_body.GetLinearVelocity().x, BALL_DROP_VELOCITY_PERCENT * this.grabbing_player.player_body.GetLinearVelocity().y));
         this.remove_grab();
