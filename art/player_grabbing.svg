@@ -5,10 +5,10 @@
 	.broom_stick{fill:#663300;}
 	.broom_brush_light{fill:#A85D2A;}
 	.player_skin_tone{fill:#ffe08a;}
-  .player_color_dark{fill:#740001;}
-  .player_color_middle{fill:#AE0001;}
-  .player_color_highlight1{fill:#EEBA30;}
-  .player_color_highlight2{fill:#D3A625;}
+  .player_color_dark{}
+  .player_color_middle{}
+  .player_color_highlight1{}
+  .player_color_highlight2{}
   .player_color_background{fill:#000000;}
   .player_color_stroke{stroke:#000000;}
   .player_color_no_fill{fill:none;}

@@ -1,4 +1,5 @@
 // Define Box2D aliases
+// TODO Add cpu levels.
 const b2Vec2 = Box2D.Common.Math.b2Vec2;
 const b2AABB = Box2D.Collision.b2AABB;
 const b2BodyDef = Box2D.Dynamics.b2BodyDef;
@@ -109,15 +110,77 @@ class GraphicsElement {
 }
 
 class PlayerGraphics extends GraphicsElement {
-    constructor() {
+    constructor(player_color) {
         super();
-        this.player_normal = new Image();
-        this.player_normal.src = 'art/player_normal.svg';
-
-        this.player_grabbing = new Image();
-        this.player_grabbing.src = 'art/player_grabbing.svg';
-
+        this.player_color = player_color
+        this.player_normal = this.load_image('art/player_normal.svg');
+        this.player_grabbing = this.load_image('art/player_grabbing.svg');
         this.images = [this.player_normal, this.player_grabbing];
+    }
+
+    load_image(file) {
+        const xhr = new XMLHttpRequest();
+        const image = new Image();
+        xhr.onload = () => {
+            if (xhr.status === 200) {
+                const parser = new DOMParser();
+                const svg_doc = parser.parseFromString(xhr.responseText, "image/svg+xml");
+                this.change_player_color(svg_doc);
+                const svg_string = new XMLSerializer().serializeToString(svg_doc);
+                const blob = new Blob([svg_string], {type: 'image/svg+xml'});
+                const url = URL.createObjectURL(blob);
+                image.src = url
+            } else {
+                throw new Error(`Player graphic ${file} could not load.`);
+            }
+        };
+        xhr.open('GET', file);
+        xhr.send();
+        return image;
+    }
+    
+    change_player_color(svg) {
+        let player_color_dark;
+        let player_color_middle;
+        let player_color_highlight1;
+        let player_color_highlight2;
+        switch(this.player_color) {
+            case 'red':
+                player_color_dark = '#740001'
+                player_color_middle = '#AE0001'
+                player_color_highlight1 = '#EEBA30'
+                player_color_highlight2 = '#D3A625'
+                break;
+            case 'blue':
+                player_color_dark = '#0C1A40'
+                player_color_middle = '#222F5B'
+                player_color_highlight1 = '#946B2D'
+                player_color_highlight2 = '#BEBEBE'
+                break;
+            case 'yellow':
+                player_color_dark = '#EEB939'
+                player_color_middle = '#F0C75E'
+                player_color_highlight1 = '#372E29'
+                player_color_highlight2 = '#726255'
+                break;
+            case 'green':
+                player_color_dark = '#1A472A'
+                player_color_middle = '#2A623D'
+                player_color_highlight1 = '#AAAAAA'
+                player_color_highlight2 = '#5D5D5D'
+                break;
+            default:
+                throw new Error('Invalid player color.');
+        }
+        const set_color = function(name, type, color) {
+            svg.querySelectorAll(name).forEach(function(element) {
+                element.setAttribute(type, color);
+            });
+        }
+        set_color('.player_color_dark', 'fill', player_color_dark)
+        set_color('.player_color_middle', 'fill', player_color_middle)
+        set_color('.player_color_highlight1', 'fill', player_color_highlight1)
+        set_color('.player_color_highlight2', 'fill', player_color_highlight2)
     }
 }
 
@@ -634,7 +697,6 @@ class Player {
     }
 
     handle_throwing() {
-        console.log('Throwing.')
         this.grabbed_ball.throw();
         this.next_grab_time = this.game.remaining_match_time - PLAYER_THROW_DELAY_SECONDS;
     }
@@ -1243,12 +1305,12 @@ class Game {
     }
 }
 
-const player_1_graphics = new PlayerGraphics();
-const player_2_graphics = new PlayerGraphics();
+const url_params = new URLSearchParams(window.location.search);
+const player_1_graphics = new PlayerGraphics(url_params.get('player1_color'));
+const player_2_graphics = new PlayerGraphics(url_params.get('player2_color'));
 const scoring_ball_graphics = new ScoringBallGraphics();
 const hitting_ball_graphics = new HittingBallGraphics();
 const all_graphics = [player_1_graphics, player_2_graphics, scoring_ball_graphics, hitting_ball_graphics];
-const url_params = new URLSearchParams(window.location.search);
 const game = new Game(player_1_graphics, player_2_graphics);
 const pause_menu = document.getElementById('pauseMenu');
 

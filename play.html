@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Broom Blitz</title>
+    <link rel="icon" href="/art/favicon.svg" type="image/svg+xml">
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -52,11 +53,23 @@
                 <h2>Player 1 Settings</h2>
                 <input type="radio" name="player1" value="human"> Human<br>
                 <input type="radio" name="player1" value="cpu"> CPU<br>
+                <select name="color1">
+                    <option value="red">Red</option>
+                    <option value="blue">Blue</option>
+                    <option value="green">Green</option>
+                    <option value="yellow">Yellow</option>
+                </select>
             </div>
             <div class="column">
                 <h2>Player 2 Settings</h2>
                 <input type="radio" name="player2" value="human"> Human<br>
                 <input type="radio" name="player2" value="cpu"> CPU<br>
+                <select name="color2">
+                    <option value="red">Red</option>
+                    <option value="blue">Blue</option>
+                    <option value="green">Green</option>
+                    <option value="yellow">Yellow</option>
+                </select>
             </div>
         </div>
         <a href="#" id="playButton" class="button">Play</a>
@@ -67,9 +80,11 @@
             // Get selected options
             let is_player_1_human = document.querySelector('input[name="player1"]:checked').value === 'human';
             let is_player_2_human = document.querySelector('input[name="player2"]:checked').value === 'human';
+            let player1_color = document.querySelector('select[name="color1"]').value;
+            let player2_color = document.querySelector('select[name="color2"]').value;
 
             // Redirect to game.html with player settings in URL
-            window.location.href = 'game.html?is_player1_human=' + is_player_1_human + '&is_player2_human=' + is_player_2_human;
+            window.location.href = 'game.html?is_player1_human=' + is_player_1_human + '&is_player2_human=' + is_player_2_human + '&player1_color=' + player1_color + '&player2_color=' + player2_color;
         });
     </script>
 </body>
