@@ -85,9 +85,7 @@ const THROW_DISTANCE_FROM_PLAYER = 0.1;
 const AIM_ASSIST_SEEK_MODE_TIME = 1.5;
 const AIM_ASSIST_MAX_THROW_ANGLE_DIFFERENCE = 45 * Math.PI / 180;
 
-const PLAYER_1_COLOR = "rgb(0 83 150 / 100%)";
-const PLAYER_2_COLOR = "rgb(162 0 26 / 100%)";
-const BOTH_PLAYERS_COLOR = "rgb(81 71 92 / 100%)";
+const BOTH_PLAYERS_COLOR = "rgb(200 200 200 / 100%)";
 
 const SCORING_BALL_COLOR = "rgb(56 7 0 / 100%)";
 const HITTING_BALL_COLOR = "rgb(0 0 0 / 100%)";
@@ -181,6 +179,25 @@ class PlayerGraphics extends GraphicsElement {
         set_color('.player_color_middle', 'fill', player_color_middle)
         set_color('.player_color_highlight1', 'fill', player_color_highlight1)
         set_color('.player_color_highlight2', 'fill', player_color_highlight2)
+    }
+
+    get_ball_stroke_player_color() {
+        switch(this.player_color) {
+            case 'red':
+                return '#AE0001'
+                break;
+            case 'blue':
+                return '#2547ba'
+                break;
+            case 'yellow':
+                return '#F0C75E'
+                break;
+            case 'green':
+                return '#15bd20'
+                break;
+            default:
+                throw new Error('Invalid player color.');
+        }
     }
 }
 
@@ -376,7 +393,7 @@ class GameCanvas {
         const radius = scoring_ball.ball_body.GetFixtureList().GetShape().GetRadius();
 
         const grabbable_players = scoring_ball.get_grabbable_players();
-        const grabbable_players_colors = grabbable_players.map((player) => player.player_color);
+        const grabbable_players_colors = grabbable_players.map((player) => player.ball_stroke_player_color);
         
         const graphic_to_draw = scoring_ball_graphics.images[0]
         console.assert(graphic_to_draw.complete, "Scoring ball graphic not ready.");
@@ -407,7 +424,7 @@ class GameCanvas {
         const radius = hitting_ball.ball_body.GetFixtureList().GetShape().GetRadius();
 
         const grabbable_players = hitting_ball.get_grabbable_players();
-        const grabbable_players_colors = grabbable_players.map((player) => player.player_color);
+        const grabbable_players_colors = grabbable_players.map((player) => player.ball_stroke_player_color);
 
         const graphic_to_draw = hitting_ball_graphics.images[0]
         console.assert(graphic_to_draw.complete, "Hitting ball graphic not ready.");
@@ -583,7 +600,7 @@ class Player {
         this.grabbed_ball = null;
         this.next_grab_time = game.remaining_match_time;
 
-        this.player_color = (this.player_number === 1) ? PLAYER_1_COLOR : PLAYER_2_COLOR;
+        this.ball_stroke_player_color = player_graphics.get_ball_stroke_player_color();
         
         this.collision_set_new_angle = false
         this.collision_new_angle = null
