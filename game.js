@@ -1,5 +1,4 @@
 // Define Box2D aliases
-// TODO Add cpu levels.
 const b2Vec2 = Box2D.Common.Math.b2Vec2;
 const b2AABB = Box2D.Collision.b2AABB;
 const b2BodyDef = Box2D.Dynamics.b2BodyDef;
@@ -46,7 +45,6 @@ const PLAYER_STUN_NUMBER_OF_ROTATIONS = 4;
 const PLAYER_LINEAR_DAMPING = 0.5;
 const PLAYER_CONTACT_BUMPER_VELOCITY = 1.0;
 
-// TODO Try movement without elastic collision.
 const WALL_FRICTION = 0.0;
 const WALL_RESTITUTION = 0.5;
 const WALL_THICKNESS = 10;
@@ -584,12 +582,6 @@ class Player {
         this.player_body.CreateFixture(player_fixture);
         this.player_body.SetUserData({'type': BodyType.PLAYER, 'object': this});
         this.player_body.SetLinearDamping(PLAYER_LINEAR_DAMPING);
-
-
-        // TODO atributes to choose?
-        
-        
-        // TODO atributes to choose?
         
         const mass_data = new Box2D.Collision.Shapes.b2MassData();
         mass_data.mass = PLAYER_MASS;
@@ -678,7 +670,6 @@ class Player {
         }
         
         if (this.collision_set_new_angle) {
-            // TODO Only set angle if the speed is high enough (to fix the bug of backing up into a wall).
             this.player_body.SetAngle(this.collision_new_angle);
             this.collision_set_new_angle = false
             this.collision_new_angle = null
@@ -866,10 +857,10 @@ class Player {
 
 class GrabbableBall {
     constructor(game, radius, friction, restitution, linear_damping, mass, inertia, grab_distance, throw_speed, body_type) {
-        // TODO Label as bullet
         this.game = game;
         const ball_body_def = new b2BodyDef;
         ball_body_def.type = b2Body.b2_dynamicBody;
+        ball_body_def.bullet = true;
 
         const ball_fixture = new b2FixtureDef;
         ball_fixture.shape = new b2CircleShape(radius);
@@ -1111,54 +1102,25 @@ class GoldenBall {
 
 class Walls {
     constructor(world) {
-        // TODO CLEAN
-        const top_wall = new b2BodyDef();
-        top_wall.position.Set(FIELD_WIDTH_METERS / 2, FIELD_LINE_WIDTH_METERS - WALL_THICKNESS / 2);
-        top_wall.type = b2Body.b2_staticBody;
-        const top_wall_fixture = new b2FixtureDef();
-        top_wall_fixture.shape = new b2PolygonShape();
-        top_wall_fixture.friction = WALL_FRICTION;
-        top_wall_fixture.restitution = WALL_RESTITUTION;
-        top_wall_fixture.shape.SetAsBox(FIELD_WIDTH_METERS / 2, WALL_THICKNESS / 2, new b2Vec2(FIELD_WIDTH_METERS / 2, FIELD_LINE_WIDTH_METERS - WALL_THICKNESS / 2), 0);
-        const top_wall_body = world.CreateBody(top_wall);
-        top_wall_body.SetUserData({'type': BodyType.WALL, 'object': this});
-        top_wall_body.CreateFixture(top_wall_fixture);
+        const create_wall = (position_x, position_y, width, height, angle) => {
+            const wall = new b2BodyDef();
+            wall.position.Set(position_x, position_y);
+            wall.type = b2Body.b2_staticBody;
+            const wall_fixture = new b2FixtureDef();
+            wall_fixture.shape = new b2PolygonShape();
+            wall_fixture.friction = WALL_FRICTION;
+            wall_fixture.restitution = WALL_RESTITUTION;
+            wall_fixture.shape.SetAsBox(width, height, new b2Vec2(position_x, position_y), angle);
+            const wall_body = world.CreateBody(wall);
+            wall_body.SetUserData({'type': BodyType.WALL, 'object': this});
+            wall_body.CreateFixture(wall_fixture);
 
-        const bottom_wall = new b2BodyDef();
-        bottom_wall.position.Set(FIELD_WIDTH_METERS / 2, FIELD_HEIGHT_METERS - FIELD_LINE_WIDTH_METERS + WALL_THICKNESS / 2);
-        bottom_wall.type = b2Body.b2_staticBody;
-        const bottom_wall_fixture = new b2FixtureDef();
-        bottom_wall_fixture.shape = new b2PolygonShape();
-        bottom_wall_fixture.friction = WALL_FRICTION;
-        bottom_wall_fixture.restitution = WALL_RESTITUTION;
-        bottom_wall_fixture.shape.SetAsBox(FIELD_WIDTH_METERS / 2, WALL_THICKNESS / 2, new b2Vec2(FIELD_WIDTH_METERS / 2, FIELD_HEIGHT_METERS - FIELD_LINE_WIDTH_METERS + WALL_THICKNESS / 2), 0);
-        const bottom_wall_body = world.CreateBody(bottom_wall);
-        bottom_wall_body.SetUserData({'type': BodyType.WALL, 'object': this});
-        bottom_wall_body.CreateFixture(bottom_wall_fixture);
-
-        const left_wall = new b2BodyDef();
-        left_wall.position.Set(FIELD_LINE_WIDTH_METERS - WALL_THICKNESS / 2, FIELD_HEIGHT_METERS / 2);
-        left_wall.type = b2Body.b2_staticBody;
-        const left_wall_fixture = new b2FixtureDef();
-        left_wall_fixture.shape = new b2PolygonShape();
-        left_wall_fixture.friction = WALL_FRICTION;
-        left_wall_fixture.restitution = WALL_RESTITUTION;
-        left_wall_fixture.shape.SetAsBox(WALL_THICKNESS / 2, FIELD_HEIGHT_METERS / 2, new b2Vec2(FIELD_LINE_WIDTH_METERS - WALL_THICKNESS / 2, FIELD_HEIGHT_METERS / 2), Math.PI / 2);
-        const left_wall_body = world.CreateBody(left_wall);
-        left_wall_body.SetUserData({'type': BodyType.WALL, 'object': this});
-        left_wall_body.CreateFixture(left_wall_fixture);
-
-        const right_wall = new b2BodyDef();
-        right_wall.position.Set(FIELD_WIDTH_METERS - FIELD_LINE_WIDTH_METERS + WALL_THICKNESS / 2, FIELD_HEIGHT_METERS / 2);
-        right_wall.type = b2Body.b2_staticBody;
-        const right_wall_fixture = new b2FixtureDef();
-        right_wall_fixture.shape = new b2PolygonShape();
-        right_wall_fixture.friction = WALL_FRICTION;
-        right_wall_fixture.restitution = WALL_RESTITUTION;
-        right_wall_fixture.shape.SetAsBox(WALL_THICKNESS / 2, FIELD_HEIGHT_METERS / 2, new b2Vec2(FIELD_WIDTH_METERS - FIELD_LINE_WIDTH_METERS + WALL_THICKNESS / 2, FIELD_HEIGHT_METERS / 2), Math.PI / 2);
-        const right_wall_body = world.CreateBody(right_wall);
-        right_wall_body.SetUserData({'type': BodyType.WALL, 'object': this});
-        right_wall_body.CreateFixture(right_wall_fixture);
+            return wall_body;
+        }
+        const top_wall_body = create_wall(FIELD_WIDTH_METERS / 2, FIELD_LINE_WIDTH_METERS - WALL_THICKNESS / 2, FIELD_WIDTH_METERS / 2, WALL_THICKNESS / 2, 0);
+        const bottom_wall_body = create_wall(FIELD_WIDTH_METERS / 2, FIELD_HEIGHT_METERS - FIELD_LINE_WIDTH_METERS + WALL_THICKNESS / 2, FIELD_WIDTH_METERS / 2, WALL_THICKNESS / 2, 0);
+        const left_wall_body = create_wall(FIELD_LINE_WIDTH_METERS - WALL_THICKNESS / 2, FIELD_HEIGHT_METERS / 2, WALL_THICKNESS / 2, FIELD_HEIGHT_METERS / 2, Math.PI / 2);
+        const right_wall_body = create_wall(FIELD_WIDTH_METERS - FIELD_LINE_WIDTH_METERS + WALL_THICKNESS / 2, FIELD_HEIGHT_METERS / 2, WALL_THICKNESS / 2, FIELD_HEIGHT_METERS / 2, Math.PI / 2);
     }
 }
 
@@ -1382,7 +1344,17 @@ function run() {
         game.update();
         game.render();
     } else {
-        // TODO loading
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        ctx.font = '30px Arial';
+        ctx.fillStyle = 'black';
+        ctx.textAlign = 'center';
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        const text = 'Loading...';
+        const textWidth = ctx.measureText(text).width;
+        const x = canvas.width / 2;
+        const y = canvas.height / 2;
+        ctx.fillText(text, x, y);
     }
 }
 
