@@ -1306,12 +1306,9 @@ class Game {
 
         const current_frame_time = performance.now() / 1000;
         let dt = current_frame_time - last_frame_time;
-        while (dt >= TIME_STEP) {
-            this.world.Step(TIME_STEP, VELOCITY_ITERATIONS, POSITION_ITERATIONS);
-            dt -= TIME_STEP;
-            last_frame_time += TIME_STEP;
-            this.remaining_match_time -= TIME_STEP;
-        }
+        this.world.Step(dt, VELOCITY_ITERATIONS, POSITION_ITERATIONS);
+        last_frame_time = current_frame_time;
+        this.remaining_match_time -= dt;
     }
 
     render() {
