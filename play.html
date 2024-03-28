@@ -22,6 +22,7 @@
             display: flex;
             flex-direction: column;
             align-items: center;
+            position: relative; /* Added */
         }
         .split {
             display: flex;
@@ -31,6 +32,7 @@
         }
         .column {
             width: 48%; /* Adjust width as needed */
+            position: relative; /* Add position relative */
         }
         .button {
             padding: 10px 20px;
@@ -40,9 +42,26 @@
             text-decoration: none;
             border-radius: 5px;
             transition: background-color 0.3s;
+            position: fixed; /* Changed to fixed */
+            bottom: 20px; /* Adjust bottom spacing as needed */
+            left: 50%; /* Center horizontally */
+            transform: translateX(-50%); /* Center horizontally */
+            z-index: 999; /* Ensure it's above other content */
         }
         .button:hover {
             background-color: #0056b3;
+        }
+        .slider-container {
+            position: absolute; /* Position absolute for slider container */
+            top: calc(100% + 10px); /* Position relative to parent column */
+            left: 0;
+            width: 50%;
+            display: flex;
+            flex-direction: column; /* Stack sliders vertically */
+            align-items: left;
+        }
+        .slider-label {
+            margin-bottom: 5px;
         }
     </style>
 </head>
@@ -59,6 +78,11 @@
                     <option value="green">Green</option>
                     <option value="yellow">Yellow</option>
                 </select>
+                <div id="cpuSliderContainer1" class="slider-container">
+                    <span class="slider-label">CPU Level:</span>
+                    <input type="range" id="cpuSlider1" min="0" max="10">
+                    <span id="cpuLevelValue1"></span>
+                </div>
             </div>
             <div class="column">
                 <h2>Player 2 Settings</h2>
@@ -70,21 +94,50 @@
                     <option value="green">Green</option>
                     <option value="yellow">Yellow</option>
                 </select>
+                <div id="cpuSliderContainer2" class="slider-container">
+                    <span class="slider-label">CPU Level:</span>
+                    <input type="range" id="cpuSlider2" min="0" max="10">
+                    <span id="cpuLevelValue2"></span>
+                </div>
             </div>
         </div>
         <a href="#" id="playButton" class="button">Play</a>
     </div>
 
     <script>
-        document.getElementById('playButton').addEventListener('click', function() {
-            // Get selected options
-            let is_player_1_human = document.querySelector('input[name="player1"]:checked').value === 'human';
-            let is_player_2_human = document.querySelector('input[name="player2"]:checked').value === 'human';
-            let player1_color = document.querySelector('select[name="color1"]').value;
-            let player2_color = document.querySelector('select[name="color2"]').value;
+        document.addEventListener('DOMContentLoaded', function() {
+            const cpuRadio1 = document.querySelector('input[name="player1"][value="cpu"]');
+            const cpuRadio2 = document.querySelector('input[name="player2"][value="cpu"]');
+            const cpuSliderContainer1 = document.getElementById('cpuSliderContainer1');
+            const cpuSliderContainer2 = document.getElementById('cpuSliderContainer2');
+            const cpuLevelValue1 = document.getElementById('cpuLevelValue1');
+            const cpuLevelValue2 = document.getElementById('cpuLevelValue2');
+            const cpuSlider1 = document.getElementById('cpuSlider1');
+            const cpuSlider2 = document.getElementById('cpuSlider2');
 
-            // Redirect to game.html with player settings in URL
-            window.location.href = 'game.html?is_player1_human=' + is_player_1_human + '&is_player2_human=' + is_player_2_human + '&player1_color=' + player1_color + '&player2_color=' + player2_color;
+            cpuSlider1.addEventListener('input', () => {
+                cpuLevelValue1.textContent = cpuSlider1.value;
+            });
+            cpuSlider2.addEventListener('input', () => {
+                cpuLevelValue2.textContent = cpuSlider2.value;
+            });
+
+            function setInitialValues() {
+                cpuLevelValue1.textContent = cpuSlider1.value;
+                cpuLevelValue2.textContent = cpuSlider2.value;
+            }
+            window.addEventListener('load', setInitialValues);
+
+            document.getElementById('playButton').addEventListener('click', function() {
+                const is_player_1_human = document.querySelector('input[name="player1"]:checked').value === 'human';
+                const is_player_2_human = document.querySelector('input[name="player2"]:checked').value === 'human';
+                const player1_color = document.querySelector('select[name="color1"]').value;
+                const player2_color = document.querySelector('select[name="color2"]').value;
+                const cpuLevel1 = cpuSlider1.value;
+                const cpuLevel2 = cpuSlider2.value;
+
+                window.location.href = 'game.html?is_player1_human=' + is_player_1_human + '&is_player2_human=' + is_player_2_human + '&player1_color=' + player1_color + '&player2_color=' + player2_color + '&cpu_level1=' + cpuLevel1 + '&cpu_level2=' + cpuLevel2;
+            });
         });
     </script>
 </body>

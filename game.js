@@ -1,4 +1,5 @@
 // Define Box2D aliases
+// TODO Make hitting balls more likely to target the person in the lead if up by 30+.
 const b2Vec2 = Box2D.Common.Math.b2Vec2;
 const b2AABB = Box2D.Collision.b2AABB;
 const b2BodyDef = Box2D.Dynamics.b2BodyDef;
@@ -94,6 +95,12 @@ const GOAL_POST_RADIUS = 0.5;
 const GOAL_POST_FRICTION = 0.0;
 const GOAL_POST_RESTITUTION = 0.5;
 const GOAL_COLOR = "rgb(255 255 255 / 100%)";
+
+const MAX_CPU_LEVEL = 10;
+const MIN_TIME_RANDOMIZE_CPU_NOISE = 1.0;
+const MAX_TIME_RANDOMIZE_CPU_NOISE = 2.0;
+const MAX_ANGULAR_NOISE_STD = 20 / 180 * Math.PI;
+const MAX_POSITIONAL_NOISE_STD = 5.0;
 
 class GraphicsElement {
     constructor() {
@@ -224,6 +231,14 @@ function random(min, max) {
     return Math.random() * (max - min) + min;
 }
 
+function random_normal(mean, standardDeviation) {
+    let u = 0, v = 0;
+    while (u === 0) u = Math.random();
+    while (v === 0) v = Math.random();
+    const normal = Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
+    return mean + standardDeviation * normal;
+}
+
 function random_int(max) {
     return Math.floor(Math.random() * (max + 1));
 }
@@ -234,6 +249,10 @@ function vector_magnitude(vector) {
 
 function distance_between_positions(position1, position2) {
     return vector_magnitude(new b2Vec2(position1.x - position2.x, position1.y - position2.y))
+}
+
+function add_noise_to_position(position, x_value, y_value) {
+    return new b2Vec2(position.x + x_value, position.y + y_value)
 }
 
 function distance_between_player_and_ball(player, ball) {
@@ -564,7 +583,7 @@ class CustomContactListener {
 }
 
 class Player {
-    constructor(game, player_number, human_controlled, player_graphics) {
+    constructor(game, player_number, human_controlled, player_graphics, cpu_level) {
         this.game = game
         this.player_number = player_number;
         this.human_controlled = human_controlled;
@@ -601,6 +620,9 @@ class Player {
         this.time_stopped_stunned = game.remaining_match_time;
 
         this.player_graphics = player_graphics;
+
+        this.cpu_level = cpu_level / MAX_CPU_LEVEL
+        this.roll_random_cpu_noise()
 
         this.reset_player();
     }
@@ -717,39 +739,64 @@ class Player {
         }
     }
 
+    roll_random_cpu_noise() {
+        this.time_to_roll_cpu_noise = this.game.remaining_match_time - random(MIN_TIME_RANDOMIZE_CPU_NOISE, MAX_TIME_RANDOMIZE_CPU_NOISE)
+        this.opposing_player_position_x_noise = 0//random_normal(0, MAX_POSITIONAL_NOISE_STD * (1 - this.cpu_level))
+        this.opposing_player_position_y_noise = 0//random_normal(0, MAX_POSITIONAL_NOISE_STD * (1 - this.cpu_level))
+        this.player_position_x_noise = random_normal(0, MAX_POSITIONAL_NOISE_STD * (1 - this.cpu_level))
+        this.player_position_y_noise = random_normal(0, MAX_POSITIONAL_NOISE_STD * (1 - this.cpu_level))
+        this.scoring_ball_position_x_noise = 0//random_normal(0, MAX_POSITIONAL_NOISE_STD * (1 - this.cpu_level))
+        this.scoring_ball_position_y_noise = 0//random_normal(0, MAX_POSITIONAL_NOISE_STD * (1 - this.cpu_level))
+        this.goal_position_x_noise = 0//random_normal(0, MAX_POSITIONAL_NOISE_STD * (1 - this.cpu_level))
+        this.goal_position_y_noise = 0//random_normal(0, MAX_POSITIONAL_NOISE_STD * (1 - this.cpu_level))
+        this.hitting_ball_position_x_noise = 0//random_normal(0, MAX_POSITIONAL_NOISE_STD * (1 - this.cpu_level))
+        this.hitting_ball_position_y_noise = 0//random_normal(0, MAX_POSITIONAL_NOISE_STD * (1 - this.cpu_level))
+        this.target_position_x_noise = random_normal(0, MAX_POSITIONAL_NOISE_STD * (1 - this.cpu_level))
+        this.target_position_y_noise = random_normal(0, MAX_POSITIONAL_NOISE_STD * (1 - this.cpu_level))
+        this.angular_player_noise = random_normal(0, MAX_ANGULAR_NOISE_STD * (1 - this.cpu_level))
+        this.angular_target_noise = random_normal(0, MAX_ANGULAR_NOISE_STD * (1 - this.cpu_level))
+    }
+
     cpu_movement() {
+        if (this.game.remaining_match_time <= this.time_to_roll_cpu_noise) {
+            this.roll_random_cpu_noise();
+        }
         let target_position = null;
         const grabbing_hitting_ball = this.grabbed_ball !== null && this.grabbed_ball.ball_body.GetUserData()['type'] === BodyType.HITTING_BALL;
         const grabbing_scoring_ball = this.grabbed_ball !== null && this.grabbed_ball.ball_body.GetUserData()['type'] === BodyType.SCORING_BALL;
         const opposing_player = this.game.player1 === this ? this.game.player2 : this.game.player1;
-        const opposing_player_position = opposing_player.player_body.GetPosition();
+        const opposing_player_position = add_noise_to_position(opposing_player.player_body.GetPosition(), this.opposing_player_position_x_noise, this.opposing_player_position_y_noise);
+        const player_position = add_noise_to_position(this.player_body.GetPosition(), this.player_position_x_noise, this.player_position_y_noise);
         const target_goals = this.game.player1 === this ? this.game.player_1_target_goals : this.game.player_2_target_goals;
-        
+        const target_goal_positions = target_goals.map((goal) => add_noise_to_position(goal.goal_sensor.GetPosition(), this.goal_position_x_noise, this.goal_position_y_noise))
+        const hitting_ball_positions = this.game.hitting_balls.map((ball) => add_noise_to_position(ball.ball_body.GetPosition(), this.hitting_ball_position_x_noise, this.hitting_ball_position_y_noise))
+        const player_angle = this.player_body.GetAngle()// + this.angular_player_noise;
+        const scoring_ball_position = add_noise_to_position(this.game.scoring_ball.ball_body.GetPosition(), this.scoring_ball_position_x_noise, this.scoring_ball_position_y_noise);
+
         if (grabbing_hitting_ball) {
             target_position = opposing_player_position;
         } else if (grabbing_scoring_ball) {
-            target_position = target_goals.reduce((closest_goal, goal) => distance_between_positions(goal.goal_sensor.GetPosition(), this.player_body.GetPosition()) < distance_between_positions(closest_goal.goal_sensor.GetPosition(), this.player_body.GetPosition()) ? goal : closest_goal, target_goals[0]).goal_sensor.GetPosition();
+            target_position = target_goal_positions.reduce((closest_goal_position, goal_position) => distance_between_positions(goal_position, player_position) < distance_between_positions(closest_goal_position, player_position) ? goal_position : closest_goal_position, target_goal_positions[0]);
         }
         this.grab = true;
         if (target_position === null) {
             // Seeking
-            const closest_hitting_ball_position = this.game.hitting_balls.reduce((closest_ball, ball) => distance_between_positions(ball.ball_body.GetPosition(), this.player_body.GetPosition()) < distance_between_positions(closest_ball.ball_body.GetPosition(), this.player_body.GetPosition()) ? ball : closest_ball, this.game.hitting_balls[0]).ball_body.GetPosition()
-            const scoring_ball_position = this.game.scoring_ball.ball_body.GetPosition();
-            const this_player_position = this.player_body.GetPosition();
-            if (distance_between_positions(opposing_player_position, scoring_ball_position) > distance_between_positions(this_player_position, scoring_ball_position) || opposing_player.is_stunned()) {
+            const closest_hitting_ball_position = hitting_ball_positions.reduce((closest_hitting_ball_position, hitting_ball_position) => distance_between_positions(hitting_ball_position, player_position) < distance_between_positions(closest_hitting_ball_position, player_position) ? hitting_ball_position : closest_hitting_ball_position, hitting_ball_positions[0])
+            if (distance_between_positions(opposing_player_position, scoring_ball_position) > distance_between_positions(player_position, scoring_ball_position) || opposing_player.is_stunned()) {
                 target_position = scoring_ball_position;
-            } else if (distance_between_positions(this_player_position, opposing_player_position) < distance_between_positions(this_player_position, closest_hitting_ball_position)) {
+            } else if (distance_between_positions(player_position, opposing_player_position) < distance_between_positions(player_position, closest_hitting_ball_position)) {
                 target_position = scoring_ball_position;
             } else {
                 target_position = closest_hitting_ball_position;
             }
         }
 
-        const angle_to_target = Math.atan2(target_position.y - this.player_body.GetPosition().y, target_position.x - this.player_body.GetPosition().x)
-        const angle_difference_to_target = angle_difference(angle_to_target, this.player_body.GetAngle());
-        if (grabbing_hitting_ball && Math.abs(angle_difference_to_target) < 45 * Math.PI / 180 && distance_between_positions(target_position, this.player_body.GetPosition()) < 50) {
+        target_position = add_noise_to_position(target_position, this.target_position_x_noise, this.target_position_y_noise)
+        const angle_to_target = Math.atan2(target_position.y - player_position.y, target_position.x - player_position.x)// + this.angular_target_noise
+        const angle_difference_to_target = angle_difference(angle_to_target, player_angle);
+        if (grabbing_hitting_ball && Math.abs(angle_difference_to_target) < 45 * Math.PI / 180 && distance_between_positions(target_position, player_position) < 50) {
             this.grab = false;
-        } else if (grabbing_scoring_ball && Math.abs(angle_difference_to_target) < 5 * Math.PI / 180 && distance_between_positions(target_position, this.player_body.GetPosition()) < 15) {
+        } else if (grabbing_scoring_ball && Math.abs(angle_difference_to_target) < 5 * Math.PI / 180 && distance_between_positions(target_position, player_position) < 15) {
             this.grab = false;
         }
         
@@ -763,10 +810,10 @@ class Player {
             this.turning_left = false;
             this.turning_right = false;
         }
-        if (Math.abs(angle_difference_to_target) < 75 * Math.PI / 180 && (distance_between_positions(target_position, this.player_body.GetPosition()) > 5 || this.grabbed_ball === null)) {
+        if (Math.abs(angle_difference_to_target) < 75 * Math.PI / 180 && (distance_between_positions(target_position, player_position) > 5 || this.grabbed_ball === null)) {
             this.moving_forward = true;
             this.moving_backward = false;
-        } else if (Math.abs(angle_difference_to_target) > 145 * Math.PI / 180 && (distance_between_positions(target_position, this.player_body.GetPosition()) > 5 || this.grabbed_ball === null)) {
+        } else if (Math.abs(angle_difference_to_target) > 145 * Math.PI / 180 && (distance_between_positions(target_position, player_position) > 5 || this.grabbed_ball === null)) {
             this.moving_forward = false;
             this.moving_backward = true;
         } else {
@@ -1191,8 +1238,8 @@ class Game {
         this.disable_seeking_hitting_ball = url_params.get('disable_seeking_hitting_ball') !== null && url_params.get('disable_seeking_hitting_ball') === 'true';
 
         this.walls = new Walls(this.world)
-        this.player1 = new Player(this, 1, url_params.get('is_player1_human') !== null && url_params.get('is_player1_human') === 'true', player_1_graphics);
-        this.player2 = new Player(this, 2, url_params.get('is_player2_human') !== null && url_params.get('is_player2_human') === 'true', player_2_graphics);
+        this.player1 = new Player(this, 1, url_params.get('is_player1_human') !== null && url_params.get('is_player1_human') === 'true', player_1_graphics, url_params.get('cpu_level1'));
+        this.player2 = new Player(this, 2, url_params.get('is_player2_human') !== null && url_params.get('is_player2_human') === 'true', player_2_graphics, url_params.get('cpu_level2'));
         this.players = [this.player1, this.player2];
         this.scoring_ball = new ScoringBall(this);
         this.hitting_ball_1 = new HittingBall(this, FIELD_WIDTH_METERS / 2, FIELD_HEIGHT_METERS / 4, this.disable_seeking_hitting_ball);
@@ -1257,8 +1304,14 @@ class Game {
             this.hitting_balls[ii].apply_movement();
         }
 
-        this.world.Step(TIME_STEP, VELOCITY_ITERATIONS, POSITION_ITERATIONS);
-        this.remaining_match_time -= TIME_STEP;
+        const current_frame_time = performance.now() / 1000;
+        let dt = current_frame_time - last_frame_time;
+        while (dt >= TIME_STEP) {
+            this.world.Step(TIME_STEP, VELOCITY_ITERATIONS, POSITION_ITERATIONS);
+            dt -= TIME_STEP;
+            last_frame_time += TIME_STEP;
+            this.remaining_match_time -= TIME_STEP;
+        }
     }
 
     render() {
@@ -1292,6 +1345,7 @@ const hitting_ball_graphics = new HittingBallGraphics();
 const all_graphics = [player_1_graphics, player_2_graphics, scoring_ball_graphics, hitting_ball_graphics];
 const game = new Game(player_1_graphics, player_2_graphics);
 const pause_menu = document.getElementById('pauseMenu');
+let last_frame_time = performance.now() / 1000;
 
 function toggle_pause() {
     if (game.remaining_match_time < 0) {
