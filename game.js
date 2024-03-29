@@ -1,6 +1,6 @@
 // Define Box2D aliases
 // TODO Make hitting balls more likely to target the person in the lead if up by 30+.
-// TODO Try out collecting metrics.
+// TODO Try out collecting metrics
 const b2Vec2 = Box2D.Common.Math.b2Vec2;
 const b2AABB = Box2D.Collision.b2AABB;
 const b2BodyDef = Box2D.Dynamics.b2BodyDef;
