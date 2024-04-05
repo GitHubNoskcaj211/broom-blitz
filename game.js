@@ -23,7 +23,7 @@ const SCOREBOARD_HEIGHT_PIXELS = 100;
 const SCOREBOARD_LINE_WIDTH_PIXELS = 10;
 const SCOREBOARD_TEXT_BUFFER_PIXELS = 5;
 
-const GAME_TIME_SECONDS = 200;
+const GAME_TIME_SECONDS = 180;
 
 const PLAYER_RADIUS = 1;
 const SCALE_PLAYER_GRAPHIC = 2.0;
@@ -1230,9 +1230,10 @@ class Goal {
 
 class Game {
     constructor(player_1_graphics, player_2_graphics) {
+        this.time_scale = url_params.get('time_scale')
         this.game_canvas = new GameCanvas();
         this.world = new b2World(new b2Vec2(0, 0), false);
-        this.remaining_match_time = GAME_TIME_SECONDS;
+        this.remaining_match_time = GAME_TIME_SECONDS * this.time_scale;
         this.paused = false;
         
         this.disable_seeking_hitting_ball = url_params.get('disable_seeking_hitting_ball') !== null && url_params.get('disable_seeking_hitting_ball') === 'true';
@@ -1306,9 +1307,9 @@ class Game {
 
         const current_frame_time = performance.now() / 1000;
         let dt = current_frame_time - last_frame_time;
-        this.world.Step(dt, VELOCITY_ITERATIONS, POSITION_ITERATIONS);
+        this.world.Step(dt * this.time_scale, VELOCITY_ITERATIONS, POSITION_ITERATIONS);
         last_frame_time = current_frame_time;
-        this.remaining_match_time -= dt;
+        this.remaining_match_time -= dt * this.time_scale;
     }
 
     render() {
@@ -1316,7 +1317,7 @@ class Game {
             return;
         }
         this.game_canvas.clear_canvas_and_draw_background();
-        this.game_canvas.render_scoreboard(this.player1.score, this.player2.score, Math.ceil(this.remaining_match_time));
+        this.game_canvas.render_scoreboard(this.player1.score, this.player2.score, Math.ceil(this.remaining_match_time / this.time_scale));
         for (const player_ii in this.players) {
             this.game_canvas.render_player(this.players[player_ii]);
         }
